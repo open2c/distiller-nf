@@ -49,7 +49,7 @@ chunksize: 30000
 #drop_sam: True
 #drop_readid: True
 do_fastqc: True
-#do_stats: False
+do_stats: False
 
 cooler_resolutions:
     - 1000000

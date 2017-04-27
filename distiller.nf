@@ -1,5 +1,10 @@
 #!/usr/bin/env nextflow
 
+/*
+vim: syntax=groovy
+-*- mode: groovy;-*-
+*/
+
 boolean isSingleFile(object) {    
     (! [Collection, Object[], nextflow.util.BlankSeparatedList].any { 
         it.isAssignableFrom(object.getClass()) 
@@ -215,14 +220,15 @@ process map_runs {
 }
 
 
+/*
+ * Parse mapped bams
+ */
+
 LIB_RUN_CHUNK_BAMS
      .groupTuple(by: [0, 1])
      .set {LIB_RUN_BAMS}
 
 
-/*
- * Parse mapped bams
- */
 process parse_runs {
     tag { "library:${library} run:${run}" }
     storeDir "intermediates/pairsam/runs"
