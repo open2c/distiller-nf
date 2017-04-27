@@ -23,6 +23,7 @@ LIB_RUN_SOURCES.choice(LIB_RUN_SRAS, LIB_RUN_FASTQS) {
 
 
 process download_sra {
+    tag { query }
     storeDir "intermediates/downloaded_fastqs"
  
     input:
@@ -84,6 +85,8 @@ LIB_RUN_FASTQS_FOR_QC
     .set {LIB_RUN_SIDE_FASTQS_FOR_QC}
 
 process fastqc{
+
+    tag { "library:${library} run:${run} side:${side}" }
     publishDir path:"fastqc/", mode:"copy"
 
     input:
@@ -117,6 +120,7 @@ LIB_RUN_FASTQS
 
 
 process chunk_fastqs {
+    tag { "library:${library} run:${run}" }
     storeDir "intermediates/fastq_chunks"
 
     input:
@@ -193,6 +197,7 @@ BWA_INDEX = Channel.from([[
  * Map fastq files
  */
 process map_runs {
+    tag { "library:${library} run:${run} chunk:${chunk}" }
     storeDir "intermediates/sam/runs"
  
     input:
@@ -219,6 +224,7 @@ LIB_RUN_CHUNK_BAMS
  * Parse mapped bams
  */
 process parse_runs {
+    tag { "library:${library} run:${run}" }
     storeDir "intermediates/pairsam/runs"
     publishDir path:"stats/runs/", pattern: "*.stats", mode:"copy"
  
@@ -265,6 +271,7 @@ LIB_RUN_PAIRSAMS
     .set {LIB_PAIRSAMS_TO_MERGE}
 
 process merge_runs_into_libraries {
+    tag { "library:${library}" }
     storeDir "intermediates/pairsam/libraries"
  
     input:
@@ -294,6 +301,7 @@ LIB_RUN_STATS
     .set {LIB_STATS_TO_MERGE}
 
 process merge_stats_runs_into_libraries {
+    tag { "library:${library}" }
     publishDir path:"stats/libraries", pattern: "*.stats", mode:"copy"
  
     input:
@@ -320,6 +328,7 @@ process merge_stats_runs_into_libraries {
  */
 
 process make_pairs_bam {
+    tag { "library:${library}" }
     publishDir path:'./', saveAs: {
       if( it.endsWith('.nodups.pairs.gz' ))
         return "pairs/libraries/${library}.nodups.pairs.gz"
@@ -387,6 +396,7 @@ LIB_PAIRS_BAMS
     .set {LIB_PAIRS}
 
 process index_pairs{
+    tag { "library:${library}" }
     publishDir path:"pairs/libraries/", saveAs: {"${library}.nodups.pairs.gz.px2"}
 
     input:
@@ -409,6 +419,7 @@ process index_pairs{
 CHROM_SIZES = Channel.from([ file(params.genome.chrom_sizes_path) ])
 
 process make_library_coolers{
+    tag { "library:${library} resolution:${res}" }
     publishDir path:"coolers/libraries/", saveAs: {"${library}.${res}.cool"}
 
     input:
@@ -443,6 +454,7 @@ LIBRARY_GROUPS
     .set { LIBGROUP_RES_COOLERS_TO_MERGE }
 
 process make_library_group_coolers{
+    tag {"library_group:${library_group} resolution:${res}"}
     publishDir path:"coolers/library_groups/", saveAs: {"${library_group}.${res}.cool"}
 
     input:
@@ -473,6 +485,7 @@ LIBRARY_GROUPS
 
 
 process merge_stats_libraries_into_groups {
+    tag { "library_group:${library_group}" }
     publishDir path:"stats/library_groups", pattern: "*.stats", mode:"copy"
  
     input:
