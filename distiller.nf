@@ -23,7 +23,7 @@ LIB_RUN_SOURCES.choice(LIB_RUN_SRAS, LIB_RUN_FASTQS) {
 
 
 process download_sra {
-    storeDir "downloaded_fastqs"
+    storeDir "intermediates/downloaded_fastqs"
  
     input:
     set val(library), val(run), val(query) from LIB_RUN_SRAS
@@ -117,7 +117,7 @@ LIB_RUN_FASTQS
 
 
 process chunk_fastqs {
-    storeDir "fastq_chunks"
+    storeDir "intermediates/fastq_chunks"
 
     input:
     set val(library), val(run),file(fastq1), file(fastq2) from LIB_RUN_FASTQS_FOR_CHUNK
@@ -193,7 +193,7 @@ BWA_INDEX = Channel.from([[
  * Map fastq files
  */
 process map_runs {
-    publishDir path:"sam/runs/", saveAs: {"${library}.${run}.${chunk}.bam"}
+    storeDir "intermediates/sam/runs"
  
     input:
     set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQ
@@ -219,21 +219,28 @@ LIB_RUN_CHUNK_BAMS
  * Parse mapped bams
  */
 process parse_runs {
-    publishDir path:"pairsam/runs/", saveAs: {"${library}.${run}.pairsam.gz"}
+    storeDir "intermediates/pairsam/runs"
+    publishDir path:"stats/runs/", pattern: "*.stats", mode:"copy"
  
     input:
     set val(library), val(run), file(bam) from LIB_RUN_BAMS
      
     output:
     set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
+    set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
  
     script:
     dropsam_flag = params.get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
     dropreadid_flag = params.get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
+    stats_command = (params.get('do_stats', 'true').toBoolean() ?
+        "python -m pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
+        "touch ${library}.${run}.stats" )
+
     if( isSingleFile(bam))
         """
         python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${bam} \
             | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz
+        ${stats_command}
         """
     else 
         """
@@ -241,13 +248,15 @@ process parse_runs {
             <( samtools cat ${bam} | samtools view ) \
             | python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} \
             | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz
+
+        ${stats_command}
         """
 }
 
 
 
 /*
- * Merge runs
+ * Merge .pairsams for runs into libraries
  */
 
 LIB_RUN_PAIRSAMS
@@ -256,7 +265,7 @@ LIB_RUN_PAIRSAMS
     .set {LIB_PAIRSAMS_TO_MERGE}
 
 process merge_runs_into_libraries {
-    publishDir path:"pairsam/libraries/", saveAs: {"${library}.pairsam.gz"}
+    storeDir "intermediates/pairsam/libraries"
  
     input:
     set val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_MERGE
@@ -275,33 +284,62 @@ process merge_runs_into_libraries {
         """
 }
 
+/*
+ * Merge .stats for runs into libraries
+ */
+
+LIB_RUN_STATS
+    .map {library, run, stats -> tuple(library, stats)}
+    .groupTuple()
+    .set {LIB_STATS_TO_MERGE}
+
+process merge_stats_runs_into_libraries {
+    publishDir path:"stats/libraries", pattern: "*.stats", mode:"copy"
+ 
+    input:
+    set val(library), file(run_stats) from LIB_STATS_TO_MERGE
+     
+    output:
+    set library, "${library}.stats" into LIB_STATS
+
+    script:
+    if( isSingleFile(run_stats))
+        """
+        ln -s ${run_stats} ${library}.stats
+        """
+    else
+        """
+        python -m pairsamtools stats --merge ${run_stats} -o ${library}.stats
+        """
+}
+
+
 
 /*
  * Make pairs bam
  */
 
-
 process make_pairs_bam {
     publishDir path:'./', saveAs: {
-      if( it == 'nodups.pairs.gz' )
+      if( it.endsWith('.nodups.pairs.gz' ))
         return "pairs/libraries/${library}.nodups.pairs.gz"
 
-      if( it == 'nodups.bam' )
+      if( it.endsWith('.nodups.bam' ))
         return "sam/libraries/${library}.nodups.bam"
 
-      if( it == 'dups.pairs.gz' )
+      if( it.endsWith('.dups.pairs.gz' ))
         return "pairs/libraries/${library}.dups.pairs.gz"
 
-      if( it == 'nodups.bam' )
+      if( it.endsWith('.nodups.bam' ))
         return "sam/libraries/${library}.dups.bam"
 
-      if( it == 'unmapped.pairs.gz' )
+      if( it.endsWith('.unmapped.pairs.gz' ))
         return "pairs/libraries/${library}.unmapped.pairs.gz"
 
-      if( it == 'nodups.bam' )
+      if( it.endsWith('.nodups.bam' ))
         return "sam/libraries/${library}.unmapped.bam"
 
-      if( it == 'dedup.stats' )
+      if( it.endsWith('.dedup.stats' ))
         return "stats/libraries/${library}.dedup.stats.tsv"
     }
  
@@ -309,31 +347,32 @@ process make_pairs_bam {
     set val(library), file(pairsam_lib) from LIB_PAIRSAMS
      
     output:
-    set val(library), file('nodups.pairs.gz'), file('nodups.bam'),
-                      file('dups.pairs.gz'), file('dups.bam'), 
-                      file('unmapped.pairs.gz'), file('unmapped.bam'),
-                      file('dedup.stats') into LIB_PAIRS_BAMS_DUPSTATS
+    set library, "${library}.nodups.pairs.gz", "${library}.nodups.bam",
+                 "${library}.dups.pairs.gz", "${library}.dups.bam", 
+                 "${library}.unmapped.pairs.gz", 
+                 "${library}.unmapped.bam" into LIB_PAIRS_BAMS
+    set library, "${library}.dedup.stats" into LIB_DEDUP_STATS
  
      """
         python -m pairsamtools select '(PAIR_TYPE == "CX") or (PAIR_TYPE == "LL")' \
             ${pairsam_lib} \
             --output-rest >( python -m pairsamtools split \
-                --output-pairs unmapped.pairs.gz \
-                --output-sam unmapped.bam \
+                --output-pairs ${library}.unmapped.pairs.gz \
+                --output-sam ${library}.unmapped.bam \
                 ) | \
         python -m pairsamtools dedup \
             --output \
                 >( python -m pairsamtools split \
-                    --output-pairs nodups.pairs.gz \
-                    --output-sam nodups.bam \
+                    --output-pairs ${library}.nodups.pairs.gz \
+                    --output-sam ${library}.nodups.bam \
                  ) \
             --output-dups \
                 >( python -m pairsamtools markasdup \
                     | python -m pairsamtools split \
-                        --output-pairs dups.pairs.gz \
-                        --output-sam dups.bam \
+                        --output-pairs ${library}.dups.pairs.gz \
+                        --output-sam ${library}.dups.bam \
                  ) \
-            --stats-file dedup.stats
+            --stats-file ${library}.dedup.stats
 
      """
 }
@@ -343,7 +382,7 @@ process make_pairs_bam {
  * Index .pairs.gz files with pairix
  */
 
-LIB_PAIRS_BAMS_DUPSTATS
+LIB_PAIRS_BAMS
     .map {v -> tuple(v[0], v[1])}
     .set {LIB_PAIRS}
 
@@ -416,4 +455,41 @@ process make_library_group_coolers{
     cooler merge ${library_group}.${res}.cool ${coolers}
     """
 }
+
+
+/*
+ * Merge .stats for library groups
+ */ 
+
+
+LIBRARY_GROUPS = Channel.from( params.library_groups.collect{ k, v -> [k, v] })
+
+LIBRARY_GROUPS
+    .combine(LIB_STATS.mix(LIB_DEDUP_STATS))
+    .filter{ it[1].contains(it[2]) } 
+    .map {library_group, libraries, library, stats -> tuple(library_group, stats)}
+    .groupTuple()
+    .set { LIBGROUP_STATS_TO_MERGE }
+
+
+process merge_stats_libraries_into_groups {
+    publishDir path:"stats/library_groups", pattern: "*.stats", mode:"copy"
+ 
+    input:
+    set val(library_group), file(stats) from LIBGROUP_STATS_TO_MERGE
+     
+    output:
+    set library_group, "${library_group}.stats" into LIBGROUP_STATS
+
+    script:
+    if( isSingleFile(stats))
+        """
+        ln -s ${stats} ${library_group}.stats
+        """
+    else
+        """
+        python -m pairsamtools stats --merge ${stats} -o ${library_group}.stats
+        """
+}
+
 
