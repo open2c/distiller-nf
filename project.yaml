@@ -12,8 +12,7 @@ fastq_paths:
             - ./test/fastq/MATalpha_R1/lane1/SRR2601842_1.fastq.gz
             - ./test/fastq/MATalpha_R1/lane1/SRR2601842_2.fastq.gz
         lane2:
-            - ./test/fastq/MATalpha_R1/lane1/SRR2601843_1.fastq.gz
-            - ./test/fastq/MATalpha_R1/lane1/SRR2601843_2.fastq.gz
+            - sra:SRR2601843?start=0&end=10000
     MATalpha_R2:
         lane1:
             - ./test/fastq/MATalpha_R2/lane1/SRR2601845_1.fastq.gz
