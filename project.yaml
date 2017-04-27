@@ -48,6 +48,7 @@ genome:
 chunksize: 30000
 #drop_sam: True
 #drop_readid: True
+#do_fastqc: True
 
 cooler_resolutions:
     - 1000000

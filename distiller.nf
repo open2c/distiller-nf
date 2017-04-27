@@ -66,12 +66,14 @@ LIB_RUN_FASTQS
 /*
  * FastQC the input files
  */
+
 LIB_RUN_FASTQS_FOR_QC = Channel.create()
 LIB_RUN_FASTQS
     .tap(LIB_RUN_FASTQS_FOR_QC)
     .set{LIB_RUN_FASTQS}
 
 LIB_RUN_FASTQS_FOR_QC
+    .filter { it -> params.get('do_fastqc', 'false').toBoolean() }
     .map{ v -> [v[0], v[1], [[1,file(v[2])], [2,file(v[3])]]]} 
     .flatMap{ 
         vs -> vs[2].collect{ 
