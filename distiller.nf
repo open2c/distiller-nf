@@ -63,15 +63,56 @@ LIB_RUN_FASTQS
     .set { LIB_RUN_FASTQS }
 
 
-LIB_RUN_FASTQS_NO_CHUNK = Channel.create()
-LIB_RUN_FASTQS_FOR_CHUNK = Channel.create()
-LIB_RUN_FASTQS.choice(LIB_RUN_FASTQS_NO_CHUNK, LIB_RUN_FASTQS_FOR_CHUNK) {
-    it -> params.get('chunksize', 0) == 0 ? 0 : 1
+/*
+ * FastQC the input files
+ */
+LIB_RUN_FASTQS_FOR_QC = Channel.create()
+LIB_RUN_FASTQS
+    .tap(LIB_RUN_FASTQS_FOR_QC)
+    .set{LIB_RUN_FASTQS}
+
+LIB_RUN_FASTQS_FOR_QC
+    .map{ v -> [v[0], v[1], [[1,file(v[2])], [2,file(v[3])]]]} 
+    .flatMap{ 
+        vs -> vs[2].collect{ 
+            it -> [vs[0],
+                   vs[1], 
+                   it[0],
+                   it[1]] } }
+    .set {LIB_RUN_SIDE_FASTQS_FOR_QC}
+
+process fastqc{
+    publishDir path:"fastqc/", mode:"copy"
+
+    input:
+    set val(library), val(run), val(side), file(fastq) from LIB_RUN_SIDE_FASTQS_FOR_QC
+
+    output:
+    set library, run, side,  
+        "${library}.${run}.${side}_fastqc.html", 
+        "${library}.${run}.${side}_fastqc.zip" into LIB_RUN_SIDE_FASTQCS
+
+    """
+    mkdir -p ./temp_fastqc/
+    ln -s \$(readlink -f ${fastq}) ./temp_fastqc/${library}.${run}.${side}.fastq.gz
+    fastqc -o ./ -f fastq ./temp_fastqc/${library}.${run}.${side}.fastq.gz
+    """
+          
 }
+
+
 
 /* 
  * Chunk fastqs
  */ 
+
+LIB_RUN_FASTQS_NO_CHUNK = Channel.create()
+LIB_RUN_FASTQS_FOR_CHUNK = Channel.create()
+LIB_RUN_FASTQS
+    .choice(LIB_RUN_FASTQS_NO_CHUNK, LIB_RUN_FASTQS_FOR_CHUNK) {
+    it -> params.get('chunksize', 0) == 0 ? 0 : 1
+}
+
 
 process chunk_fastqs {
     storeDir "fastq_chunks"
@@ -116,7 +157,6 @@ CHUNKS_SIDE_1
                    it.toString().tokenize('.')[-4], 
                    it] }}
     .set{CHUNKS_SIDE_1}
-
 
 CHUNKS_SIDE_2
     .flatMap{ 
@@ -180,7 +220,7 @@ process parse_runs {
     publishDir path:"pairsam/runs/", saveAs: {"${library}.${run}.pairsam.gz"}
  
     input:
-    set val(library), val(run), file(mapped_bam) from LIB_RUN_BAMS
+    set val(library), val(run), file(bam) from LIB_RUN_BAMS
      
     output:
     set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
@@ -188,15 +228,15 @@ process parse_runs {
     script:
     dropsam_flag = params.get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
     dropreadid_flag = params.get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
-    if( isSingleFile(mapped_bam))
+    if( isSingleFile(bam))
         """
-        python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${mapped_bam} \
+        python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${bam} \
             | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz
         """
     else 
         """
-        cat <( samtools merge - ${mapped_bam} | samtools view -H ) \
-            <( samtools cat ${mapped_bam} | samtools view ) \
+        cat <( samtools merge - ${bam} | samtools view -H ) \
+            <( samtools cat ${bam} | samtools view ) \
             | python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} \
             | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz
         """
@@ -325,19 +365,14 @@ process index_pairs{
  * Bin indexed .pairs into .cool matrices.
  */ 
 
-RES = Channel.from( params.cooler_resolutions )
-
-LIB_IDX_PAIRS
-    .combine(RES)
-    .set{ LIB_IDX_PAIRS_RES }
-
 CHROM_SIZES = Channel.from([ file(params.genome.chrom_sizes_path) ])
 
 process make_library_coolers{
     publishDir path:"coolers/libraries/", saveAs: {"${library}.${res}.cool"}
 
     input:
-        set val(library), file(pairs_lib), file(pairs_index_lib), val(res) from LIB_IDX_PAIRS_RES
+        set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
+        each res from params.cooler_resolutions
         file(chrom_sizes) from CHROM_SIZES.first()
 
     output:
