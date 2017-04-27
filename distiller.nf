@@ -186,16 +186,18 @@ process parse_runs {
     set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
  
     script:
+    dropsam_flag = params.get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
+    dropreadid_flag = params.get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
     if( isSingleFile(mapped_bam))
         """
-        python -m pairsamtools parse ${mapped_bam} \
+        python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${mapped_bam} \
             | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz
         """
     else 
         """
         cat <( samtools merge - ${mapped_bam} | samtools view -H ) \
             <( samtools cat ${mapped_bam} | samtools view ) \
-            | python -m pairsamtools parse \
+            | python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} \
             | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz
         """
 }
@@ -296,7 +298,7 @@ process make_pairs_bam {
 
 
 /*
- * Merge runs
+ * Index .pairs.gz files with pairix
  */
 
 LIB_PAIRS_BAMS_DUPSTATS
@@ -317,6 +319,11 @@ process index_pairs{
     """
 }
 
+
+
+/*
+ * Bin indexed .pairs into .cool matrices.
+ */ 
 
 RES = Channel.from( params.cooler_resolutions )
 
@@ -345,6 +352,11 @@ process make_library_coolers{
 }
 
 
+/*
+ * Merge .cool matrices for library groups.
+ */ 
+
+
 LIBRARY_GROUPS = Channel.from( params.library_groups.collect{ k, v -> [k, v] })
 
 LIBRARY_GROUPS
@@ -361,9 +373,10 @@ process make_library_group_coolers{
         set val(library_group), val(res), file(coolers) from LIBGROUP_RES_COOLERS_TO_MERGE
 
     output:
-        set library_group, res, "${library_group}.${res}.cool" into coolers_library_groups
+        set library_group, res, "${library_group}.${res}.cool" into LIBGROUP_RES_COOLERS
 
     """
     cooler merge ${library_group}.${res}.cool ${coolers}
     """
 }
+
