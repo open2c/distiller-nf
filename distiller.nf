@@ -1,8 +1,9 @@
 #!/usr/bin/env nextflow
 
-boolean isCollectionOrArray(object) {    
-    [Collection, Object[], nextflow.util.BlankSeparatedList].any { 
-        it.isAssignableFrom(object.getClass()) }
+boolean isSingleFile(object) {    
+    (! [Collection, Object[], nextflow.util.BlankSeparatedList].any { 
+        it.isAssignableFrom(object.getClass()) 
+    } ) || (object.size() == 1)
 }
 
 LIB_RUN_SOURCES = Channel.from(
@@ -185,16 +186,16 @@ process parse_runs {
     set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
  
     script:
-    if(( isCollectionOrArray(mapped_bam)) && ( mapped_bam.size() > 1))
+    if( isSingleFile(mapped_bam))
         """
-        cat <( samtools merge - ${mapped_bam} | samtools view -H ) \
-            <( samtools cat ${mapped_bam} | samtools view ) \
-            | python -m pairsamtools parse \
+        python -m pairsamtools parse ${mapped_bam} \
             | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz
         """
     else 
         """
-        python -m pairsamtools parse ${mapped_bam} \
+        cat <( samtools merge - ${mapped_bam} | samtools view -H ) \
+            <( samtools cat ${mapped_bam} | samtools view ) \
+            | python -m pairsamtools parse \
             | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz
         """
 }
@@ -220,148 +221,149 @@ process merge_runs_into_libraries {
     set library, "${library}.pairsam.gz" into LIB_PAIRSAMS
 
     script:
-    if(( isCollectionOrArray(run_pairsam )) && ( run_pairsam.size() > 1))
+    if( isSingleFile(run_pairsam))
         """
-        python -m pairsamtools merge ${run_pairsam} -o ${library}.pairsam.gz
+        ln -s ${run_pairsam} ${library}.pairsam.gz
         """
     else
         """
-        ln -s ${run_pairsam} ${library}.pairsam.gz
+        python -m pairsamtools merge ${run_pairsam} -o ${library}.pairsam.gz
         """
 }
 
 
-// /*
-//  * Make pairs bam
-//  */
-// 
-// 
-// process make_pairs_bam {
-//     publishDir path:'./', saveAs: {
-//       if( it == 'nodups.pairs.gz' )
-//         return "pairs/libraries/${library}.nodups.pairs.gz"
-// 
-//       if( it == 'nodups.bam' )
-//         return "sam/libraries/${library}.nodups.bam"
-// 
-//       if( it == 'dups.pairs.gz' )
-//         return "pairs/libraries/${library}.dups.pairs.gz"
-// 
-//       if( it == 'nodups.bam' )
-//         return "sam/libraries/${library}.dups.bam"
-// 
-//       if( it == 'unmapped.pairs.gz' )
-//         return "pairs/libraries/${library}.unmapped.pairs.gz"
-// 
-//       if( it == 'nodups.bam' )
-//         return "sam/libraries/${library}.unmapped.bam"
-// 
-//       if( it == 'dedup.stats' )
-//         return "stats/libraries/${library}.dedup.stats.tsv"
-//     }
-//  
-//     input:
-//     set val(library), file(pairsam_lib) from pairsam_libs
-//      
-//     output:
-//     set val(library), file('nodups.pairs.gz'), file('nodups.bam'),
-//                       file('dups.pairs.gz'), file('dups.bam'), 
-//                       file('unmapped.pairs.gz'), file('unmapped.bam'),
-//                       file('dedup.stats') into split_libs
-//  
-//      """
-//         python -m pairsamtools select '(PAIR_TYPE == "CX") or (PAIR_TYPE == "LL")' \
-//             ${pairsam_lib} \
-//             --output-rest >( python -m pairsamtools split \
-//                 --output-pairs unmapped.pairs.gz \
-//                 --output-sam unmapped.bam \
-//                 ) | \
-//         python -m pairsamtools dedup \
-//             --output \
-//                 >( python -m pairsamtools split \
-//                     --output-pairs nodups.pairs.gz \
-//                     --output-sam nodups.bam \
-//                  ) \
-//             --output-dups \
-//                 >( python -m pairsamtools markasdup \
-//                     | python -m pairsamtools split \
-//                         --output-pairs dups.pairs.gz \
-//                         --output-sam dups.bam \
-//                  ) \
-//             --stats-file dedup.stats
-// 
-//      """
-// }
-// 
-// /*
-//  * Merge runs
-//  */
-// 
-// split_libs
-//     .map {v -> tuple(v[0], v[1])}
-//     .set {pairs_libs}
-// 
-// process index_pairs{
-//     publishDir path:"pairs/libraries/", saveAs: {"${library}.nodups.pairs.gz.px2"}
-// 
-//     input:
-//     set val(library), file(pairs_lib) from pairs_libs
-//      
-//     output:
-//     set val(library), file(pairs_lib), file('*.px2') into indexed_pairs_libs
-//  
-//     """
-//     pairix ${pairs_lib}
-//     """
-// }
-// 
-// 
-// RES = Channel.from( params.cooler_resolutions )
-// 
-// indexed_pairs_libs
-//     .combine(RES)
-//     .set{ indexed_pairs_libs_w_res }
-// 
-// CHROM_SIZES = Channel.from([ file(params.genome.chrom_sizes_path) ])
-// 
-// process make_library_coolers{
-//     publishDir path:"coolers/libraries/", saveAs: {"${library}.${res}.cool"}
-// 
-//     input:
-//         set val(library), file(pairs_lib), file(pairs_index_lib), val(res) from indexed_pairs_libs_w_res
-//         file(chrom_sizes) from CHROM_SIZES.first()
-// 
-//     output:
-//         set library, res, "${library}.${res}.cool" into coolers_libraries
-// 
-//     shell:
-//         """
-//         cooler cload pairix \
-//             --assembly ${params.genome.assembly} \
-//             ${chrom_sizes}:${res} ${pairs_lib} ${library}.${res}.cool
-//         """
-// }
-// 
-// 
-// LIBRARY_GROUPS = Channel.from( params.library_groups.collect{ k, v -> [k, v] })
-// 
-// LIBRARY_GROUPS
-//     .combine(coolers_libraries)
-//     .filter{ it[1].contains(it[2]) } 
-//     .map {library_group, libraries, library, res, file -> tuple(library_group, res, file)}
-//     .groupTuple(by: [0, 1])
-//     .set { coolers_grouped_by_group_res }
-// 
-// process make_library_group_coolers{
-//     publishDir path:"coolers/library_groups/", saveAs: {"${library_group}.${res}.cool"}
-// 
-//     input:
-//         set val(library_group), val(res), file(coolers) from coolers_grouped_by_group_res
-// 
-//     output:
-//         file('out.cool') into coolers_library_groups
-// 
-//     """
-//     cooler merge out.cool ${coolers}
-//     """
-// }
+/*
+ * Make pairs bam
+ */
+
+
+process make_pairs_bam {
+    publishDir path:'./', saveAs: {
+      if( it == 'nodups.pairs.gz' )
+        return "pairs/libraries/${library}.nodups.pairs.gz"
+
+      if( it == 'nodups.bam' )
+        return "sam/libraries/${library}.nodups.bam"
+
+      if( it == 'dups.pairs.gz' )
+        return "pairs/libraries/${library}.dups.pairs.gz"
+
+      if( it == 'nodups.bam' )
+        return "sam/libraries/${library}.dups.bam"
+
+      if( it == 'unmapped.pairs.gz' )
+        return "pairs/libraries/${library}.unmapped.pairs.gz"
+
+      if( it == 'nodups.bam' )
+        return "sam/libraries/${library}.unmapped.bam"
+
+      if( it == 'dedup.stats' )
+        return "stats/libraries/${library}.dedup.stats.tsv"
+    }
+ 
+    input:
+    set val(library), file(pairsam_lib) from LIB_PAIRSAMS
+     
+    output:
+    set val(library), file('nodups.pairs.gz'), file('nodups.bam'),
+                      file('dups.pairs.gz'), file('dups.bam'), 
+                      file('unmapped.pairs.gz'), file('unmapped.bam'),
+                      file('dedup.stats') into LIB_PAIRS_BAMS_DUPSTATS
+ 
+     """
+        python -m pairsamtools select '(PAIR_TYPE == "CX") or (PAIR_TYPE == "LL")' \
+            ${pairsam_lib} \
+            --output-rest >( python -m pairsamtools split \
+                --output-pairs unmapped.pairs.gz \
+                --output-sam unmapped.bam \
+                ) | \
+        python -m pairsamtools dedup \
+            --output \
+                >( python -m pairsamtools split \
+                    --output-pairs nodups.pairs.gz \
+                    --output-sam nodups.bam \
+                 ) \
+            --output-dups \
+                >( python -m pairsamtools markasdup \
+                    | python -m pairsamtools split \
+                        --output-pairs dups.pairs.gz \
+                        --output-sam dups.bam \
+                 ) \
+            --stats-file dedup.stats
+
+     """
+}
+
+
+/*
+ * Merge runs
+ */
+
+LIB_PAIRS_BAMS_DUPSTATS
+    .map {v -> tuple(v[0], v[1])}
+    .set {LIB_PAIRS}
+
+process index_pairs{
+    publishDir path:"pairs/libraries/", saveAs: {"${library}.nodups.pairs.gz.px2"}
+
+    input:
+    set val(library), file(pairs_lib) from LIB_PAIRS
+     
+    output:
+    set val(library), file(pairs_lib), file('*.px2') into LIB_IDX_PAIRS
+ 
+    """
+    pairix ${pairs_lib}
+    """
+}
+
+
+RES = Channel.from( params.cooler_resolutions )
+
+LIB_IDX_PAIRS
+    .combine(RES)
+    .set{ LIB_IDX_PAIRS_RES }
+
+CHROM_SIZES = Channel.from([ file(params.genome.chrom_sizes_path) ])
+
+process make_library_coolers{
+    publishDir path:"coolers/libraries/", saveAs: {"${library}.${res}.cool"}
+
+    input:
+        set val(library), file(pairs_lib), file(pairs_index_lib), val(res) from LIB_IDX_PAIRS_RES
+        file(chrom_sizes) from CHROM_SIZES.first()
+
+    output:
+        set library, res, "${library}.${res}.cool" into LIB_RES_COOLERS
+
+    shell:
+        """
+        cooler cload pairix \
+            --assembly ${params.genome.assembly} \
+            ${chrom_sizes}:${res} ${pairs_lib} ${library}.${res}.cool
+        """
+}
+
+
+LIBRARY_GROUPS = Channel.from( params.library_groups.collect{ k, v -> [k, v] })
+
+LIBRARY_GROUPS
+    .combine(LIB_RES_COOLERS)
+    .filter{ it[1].contains(it[2]) } 
+    .map {library_group, libraries, library, res, file -> tuple(library_group, res, file)}
+    .groupTuple(by: [0, 1])
+    .set { LIBGROUP_RES_COOLERS_TO_MERGE }
+
+process make_library_group_coolers{
+    publishDir path:"coolers/library_groups/", saveAs: {"${library_group}.${res}.cool"}
+
+    input:
+        set val(library_group), val(res), file(coolers) from LIBGROUP_RES_COOLERS_TO_MERGE
+
+    output:
+        set library_group, res, "${library_group}.${res}.cool" into coolers_library_groups
+
+    """
+    cooler merge ${library_group}.${res}.cool ${coolers}
+    """
+}
