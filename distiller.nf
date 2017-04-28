@@ -251,13 +251,13 @@ process parse_runs {
     dropsam_flag = params.get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
     dropreadid_flag = params.get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
     stats_command = (params.get('do_stats', 'true').toBoolean() ?
-        "python -m pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
+        "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
         "touch ${library}.${run}.stats" )
 
     if( isSingleFile(bam))
         """
-        python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${bam} \
-            | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz \
+        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${bam} \
+            | pairsamtools sort -o ${library}.${run}.pairsam.gz \
             | cat
         ${stats_command}
         chmod -R ugo+rw ./*
@@ -266,8 +266,8 @@ process parse_runs {
         """
         cat <( samtools merge - ${bam} | samtools view -H ) \
             <( samtools cat ${bam} | samtools view ) \
-            | python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} \
-            | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz \
+            | pairsamtools parse ${dropsam_flag} ${dropreadid_flag} \
+            | pairsamtools sort -o ${library}.${run}.pairsam.gz \
             | cat
 
 
@@ -305,7 +305,7 @@ process merge_runs_into_libraries {
         """
     else
         """
-        python -m pairsamtools merge ${run_pairsam} -o ${library}.pairsam.gz
+        pairsamtools merge ${run_pairsam} -o ${library}.pairsam.gz
         chmod -R ugo+rw ./*
         """
 }
@@ -337,7 +337,7 @@ process merge_stats_runs_into_libraries {
         """
     else
         """
-        python -m pairsamtools stats --merge ${run_stats} -o ${library}.stats
+        pairsamtools stats --merge ${run_stats} -o ${library}.stats
         chmod -R ugo+rw ./*
         """
 }
@@ -384,21 +384,21 @@ process make_pairs_bam {
     set library, "${library}.dedup.stats" into LIB_DEDUP_STATS
  
      """
-    python -m pairsamtools select '(PAIR_TYPE == "CX") or (PAIR_TYPE == "LL")' \
+    pairsamtools select '(PAIR_TYPE == "CX") or (PAIR_TYPE == "LL")' \
         ${pairsam_lib} \
-        --output-rest >( python -m pairsamtools split \
+        --output-rest >( pairsamtools split \
             --output-pairs ${library}.unmapped.pairs.gz \
             --output-sam ${library}.unmapped.bam \
             ) | \
-        python -m pairsamtools dedup \
+        pairsamtools dedup \
             --output \
-                >( python -m pairsamtools split \
+                >( pairsamtools split \
                     --output-pairs ${library}.nodups.pairs.gz \
                     --output-sam ${library}.nodups.bam \
                  ) \
             --output-dups \
-                >( python -m pairsamtools markasdup \
-                    | python -m pairsamtools split \
+                >( pairsamtools markasdup \
+                    | pairsamtools split \
                         --output-pairs ${library}.dups.pairs.gz \
                         --output-sam ${library}.dups.bam \
                  ) \
@@ -528,7 +528,7 @@ process merge_stats_libraries_into_groups {
         """
     else
         """
-        python -m pairsamtools stats --merge ${stats} -o ${library_group}.stats
+        pairsamtools stats --merge ${stats} -o ${library_group}.stats
         chmod -R ugo+rw ./*
         """
 }
