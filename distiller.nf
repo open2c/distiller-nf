@@ -211,6 +211,8 @@ BWA_INDEX = Channel.from([[
 process map_runs {
     tag "library:${library} run:${run} chunk:${chunk}"
     storeDir "intermediates/sam/runs"
+
+    cpus 8
  
     input:
     set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQ
@@ -220,7 +222,7 @@ process map_runs {
     set library, run, "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_BAMS
  
     """
-    bwa mem -SP ${bwa_index_base} ${fastq1} ${fastq2} \
+    bwa mem -t ${task.cpus} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
         | samtools view -bS > ${library}.${run}.${chunk}.bam \
         | cat
     """
@@ -240,6 +242,8 @@ process parse_runs {
     tag "library:${library} run:${run}"
     storeDir "intermediates/pairsam/runs"
     publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
+
+    cpus 8
  
     input:
     set val(library), val(run), file(bam) from LIB_RUN_BAMS
@@ -257,19 +261,29 @@ process parse_runs {
 
     if( isSingleFile(bam))
         """
+        mkdir ./tmp4sort
         pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${bam} \
-            | pairsamtools sort -o ${library}.${run}.pairsam.gz --tmpdir ./ \
+            | pairsamtools sort --nproc ${task.cpus} \
+                                -o ${library}.${run}.pairsam.gz \
+                                --tmpdir ./tmp4sort \
             | cat
+
+        rm -rf ./tmp4sort
+
         ${stats_command}
         """
     else 
         """
+        mkdir ./tmp4sort
         cat <( samtools merge - ${bam} | samtools view -H ) \
             <( samtools cat ${bam} | samtools view ) \
             | pairsamtools parse ${dropsam_flag} ${dropreadid_flag} \
-            | pairsamtools sort -o ${library}.${run}.pairsam.gz \
+            | pairsamtools sort --nproc ${task.cpus} \
+                                -o ${library}.${run}.pairsam.gz \
+                                --tmpdir ./tmp4sort \
             | cat
 
+        rm -rf ./tmp4sort
 
         ${stats_command}
         """
@@ -289,6 +303,8 @@ LIB_RUN_PAIRSAMS
 process merge_runs_into_libraries {
     tag "library:${library}"
     storeDir "intermediates/pairsam/libraries"
+
+    cpus 8
  
     input:
     set val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_MERGE
@@ -303,7 +319,7 @@ process merge_runs_into_libraries {
         """
     else
         """
-        pairsamtools merge ${run_pairsam} -o ${library}.pairsam.gz
+        pairsamtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.gz
         """
 }
 
@@ -367,6 +383,8 @@ process make_pairs_bam {
       if( it.endsWith('.dedup.stats' ))
         return getOutDir("stats_library") +"/${library}.dedup.stats.tsv"
     }
+
+    cpus 8
  
     input:
     set val(library), file(pairsam_lib) from LIB_PAIRSAMS
@@ -378,7 +396,7 @@ process make_pairs_bam {
                  "${library}.unmapped.bam" into LIB_PAIRS_BAMS
     set library, "${library}.dedup.stats" into LIB_DEDUP_STATS
  
-     """
+    """
     pairsamtools select '(PAIR_TYPE == "CX") or (PAIR_TYPE == "LL")' \
         ${pairsam_lib} \
         --output-rest >( pairsamtools split \
@@ -440,6 +458,8 @@ process make_library_coolers{
     tag "library:${library} resolution:${res}"
     publishDir path: getOutDir('coolers_library'), saveAs: {"${library}.${res}.cool"}
 
+    cpus 8
+
     input:
         set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
         each res from params.binning.resolutions
@@ -450,6 +470,7 @@ process make_library_coolers{
 
     """
     cooler cload pairix \
+        --nproc ${task.cpus} \
         --assembly ${params.input.genome.assembly} \
         ${chrom_sizes}:${res} ${pairs_lib} ${library}.${res}.cool
     """
