@@ -1,0 +1,24 @@
+name: distiller-env
+channels:
+    - conda-forge               
+    - defaults                  
+    - bioconda                  
+    - golobor
+dependencies:
+    - python=3.6
+    - setuptools 
+    - pip
+    - cython 
+    - numpy 
+    - dask
+    - nose 
+    - pbgzip
+    - samtools>=1.4
+    - sra-tools>=2.8.1
+    - fastqc
+    - pairix
+    - bwa==0.7.15
+    - pip:
+        - cooler==0.7.0
+        - git+git://github.com/mirnylab/pairsamtools
+        - toolz
