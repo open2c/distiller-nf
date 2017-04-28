@@ -5,10 +5,12 @@ vim: syntax=groovy
 -*- mode: groovy;-*-
 */
 
+/*
+ * Miscellaneous code for the pipeline
+ */
+
 boolean isSingleFile(object) {    
-    (! [Collection, Object[], nextflow.util.BlankSeparatedList].any { 
-        it.isAssignableFrom(object.getClass()) 
-    } ) || (object.size() == 1)
+    object instanceof Path  
 }
 
 String getOutDir(output_type) {
@@ -33,7 +35,7 @@ LIB_RUN_SOURCES.choice(LIB_RUN_SRAS, LIB_RUN_FASTQS) {
 
 
 process download_sra {
-    tag { query }
+    tag "$query"
     storeDir "intermediates/downloaded_fastqs"
  
     input:
@@ -96,7 +98,7 @@ LIB_RUN_FASTQS_FOR_QC
 
 process fastqc{
 
-    tag { "library:${library} run:${run} side:${side}" }
+    tag "library:${library} run:${run} side:${side}"
     publishDir path: getOutDir('fastqc'), mode:"copy"
 
     input:
@@ -131,7 +133,7 @@ LIB_RUN_FASTQS
 
 
 process chunk_fastqs {
-    tag { "library:${library} run:${run}" }
+    tag "library:${library} run:${run}"
     storeDir "intermediates/fastq_chunks"
 
     input:
@@ -207,7 +209,7 @@ BWA_INDEX = Channel.from([[
  * Map fastq files
  */
 process map_runs {
-    tag { "library:${library} run:${run} chunk:${chunk}" }
+    tag "library:${library} run:${run} chunk:${chunk}"
     storeDir "intermediates/sam/runs"
  
     input:
@@ -235,7 +237,7 @@ LIB_RUN_CHUNK_BAMS
 
 
 process parse_runs {
-    tag { "library:${library} run:${run}" }
+    tag "library:${library} run:${run}"
     storeDir "intermediates/pairsam/runs"
     publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
  
@@ -285,7 +287,7 @@ LIB_RUN_PAIRSAMS
     .set {LIB_PAIRSAMS_TO_MERGE}
 
 process merge_runs_into_libraries {
-    tag { "library:${library}" }
+    tag "library:${library}"
     storeDir "intermediates/pairsam/libraries"
  
     input:
@@ -315,7 +317,7 @@ LIB_RUN_STATS
     .set {LIB_STATS_TO_MERGE}
 
 process merge_stats_runs_into_libraries {
-    tag { "library:${library}" }
+    tag "library:${library}"
     publishDir path: getOutDir('stats_library'), pattern: "*.stats", mode:"copy"
  
     input:
@@ -342,7 +344,7 @@ process merge_stats_runs_into_libraries {
  */
 
 process make_pairs_bam {
-    tag { "library:${library}" }
+    tag "library:${library}"
     publishDir path:'/', saveAs: {
       if( it.endsWith('.nodups.pairs.gz' ))
         return getOutDir("pairs_library") +"/${library}.nodups.pairs.gz"
@@ -412,7 +414,7 @@ LIB_PAIRS_BAMS
     .set {LIB_PAIRS}
 
 process index_pairs{
-    tag { "library:${library}" }
+    tag "library:${library}"
     publishDir path: getOutDir('pairs_library'), saveAs: {"${library}.nodups.pairs.gz.px2"}
 
     input:
@@ -435,7 +437,7 @@ process index_pairs{
 CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
 process make_library_coolers{
-    tag { "library:${library} resolution:${res}" }
+    tag "library:${library} resolution:${res}"
     publishDir path: getOutDir('coolers_library'), saveAs: {"${library}.${res}.cool"}
 
     input:
@@ -469,7 +471,7 @@ LIBRARY_GROUPS
     .set { LIBGROUP_RES_COOLERS_TO_MERGE }
 
 process make_library_group_coolers{
-    tag {"library_group:${library_group} resolution:${res}"}
+    tag "library_group:${library_group} resolution:${res}"
     publishDir path: getOutDir('coolers_library_group'), saveAs: {"${library_group}.${res}.cool"}
 
     input:
@@ -500,7 +502,7 @@ LIBRARY_GROUPS
 
 
 process merge_stats_libraries_into_groups {
-    tag { "library_group:${library_group}" }
+    tag "library_group:${library_group}"
     publishDir path: getOutDir('stats_library_group'), pattern: "*.stats", mode:"copy"
  
     input:
