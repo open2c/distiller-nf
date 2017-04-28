@@ -57,6 +57,7 @@ process download_sra {
         fastq-dump -F ${sra_cli} --split-files --gzip
         mv ${srr}_1.fastq.gz ${library}.${run}.1.fastq.gz
         mv ${srr}_2.fastq.gz ${library}.${run}.2.fastq.gz
+        chmod -R ugo+rw ./*
         """
     else
         error "Runs can be defined with one line only with SRA"
@@ -106,6 +107,8 @@ process fastqc{
     mkdir -p ./temp_fastqc/
     ln -s \$(readlink -f ${fastq}) ./temp_fastqc/${library}.${run}.${side}.fastq.gz
     fastqc -o ./ -f fastq ./temp_fastqc/${library}.${run}.${side}.fastq.gz
+    rm -r ./temp_fastqc/
+    chmod -R ugo+rw ./*
     """
           
 }
@@ -148,6 +151,7 @@ process chunk_fastqs {
     zcat ${fastq2} | split -l ${chunksize_lines} -d \
         --filter 'gzip > \$FILE.2.fastq.gz' - \
         ${library}.${run}.
+    chmod -R ugo+rw ./*
     """
 }
 
@@ -215,7 +219,9 @@ process map_runs {
  
     """
     bwa mem -SP ${bwa_index_base} ${fastq1} ${fastq2} \
-        | samtools view -bS > ${library}.${run}.${chunk}.bam
+        | samtools view -bS > ${library}.${run}.${chunk}.bam \
+        | cat
+    chmod -R ugo+rw ./*
     """
 }
 
@@ -251,17 +257,22 @@ process parse_runs {
     if( isSingleFile(bam))
         """
         python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${bam} \
-            | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz
+            | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz \
+            | cat
         ${stats_command}
+        chmod -R ugo+rw ./*
         """
     else 
         """
         cat <( samtools merge - ${bam} | samtools view -H ) \
             <( samtools cat ${bam} | samtools view ) \
             | python -m pairsamtools parse ${dropsam_flag} ${dropreadid_flag} \
-            | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz
+            | python -m pairsamtools sort -o ${library}.${run}.pairsam.gz \
+            | cat
+
 
         ${stats_command}
+        chmod -R ugo+rw ./*
         """
 }
 
@@ -289,11 +300,13 @@ process merge_runs_into_libraries {
     script:
     if( isSingleFile(run_pairsam))
         """
-        ln -s ${run_pairsam} ${library}.pairsam.gz
+        ln -s \$(readlink -f ${run_pairsam}) ${library}.pairsam.gz
+        chmod -R ugo+rw ./*
         """
     else
         """
         python -m pairsamtools merge ${run_pairsam} -o ${library}.pairsam.gz
+        chmod -R ugo+rw ./*
         """
 }
 
@@ -320,10 +333,12 @@ process merge_stats_runs_into_libraries {
     if( isSingleFile(run_stats))
         """
         ln -s ${run_stats} ${library}.stats
+        chmod -R ugo+rw ./*
         """
     else
         """
         python -m pairsamtools stats --merge ${run_stats} -o ${library}.stats
+        chmod -R ugo+rw ./*
         """
 }
 
@@ -369,12 +384,12 @@ process make_pairs_bam {
     set library, "${library}.dedup.stats" into LIB_DEDUP_STATS
  
      """
-        python -m pairsamtools select '(PAIR_TYPE == "CX") or (PAIR_TYPE == "LL")' \
-            ${pairsam_lib} \
-            --output-rest >( python -m pairsamtools split \
-                --output-pairs ${library}.unmapped.pairs.gz \
-                --output-sam ${library}.unmapped.bam \
-                ) | \
+    python -m pairsamtools select '(PAIR_TYPE == "CX") or (PAIR_TYPE == "LL")' \
+        ${pairsam_lib} \
+        --output-rest >( python -m pairsamtools split \
+            --output-pairs ${library}.unmapped.pairs.gz \
+            --output-sam ${library}.unmapped.bam \
+            ) | \
         python -m pairsamtools dedup \
             --output \
                 >( python -m pairsamtools split \
@@ -387,9 +402,12 @@ process make_pairs_bam {
                         --output-pairs ${library}.dups.pairs.gz \
                         --output-sam ${library}.dups.bam \
                  ) \
-            --stats-file ${library}.dedup.stats
+            --stats-file ${library}.dedup.stats \
+            | cat
 
-     """
+
+    chmod -R ugo+rw ./*
+    """
 }
 
 
@@ -413,6 +431,7 @@ process index_pairs{
  
     """
     pairix ${pairs_lib}
+    chmod -R ugo+rw ./*
     """
 }
 
@@ -436,12 +455,12 @@ process make_library_coolers{
     output:
         set library, res, "${library}.${res}.cool" into LIB_RES_COOLERS
 
-    shell:
-        """
-        cooler cload pairix \
-            --assembly ${params.genome.assembly} \
-            ${chrom_sizes}:${res} ${pairs_lib} ${library}.${res}.cool
-        """
+    """
+    cooler cload pairix \
+        --assembly ${params.genome.assembly} \
+        ${chrom_sizes}:${res} ${pairs_lib} ${library}.${res}.cool
+    chmod -R ugo+rw ./*
+    """
 }
 
 
@@ -471,6 +490,7 @@ process make_library_group_coolers{
 
     """
     cooler merge ${library_group}.${res}.cool ${coolers}
+    chmod -R ugo+rw ./*
     """
 }
 
@@ -504,10 +524,12 @@ process merge_stats_libraries_into_groups {
     if( isSingleFile(stats))
         """
         ln -s ${stats} ${library_group}.stats
+        chmod -R ugo+rw ./*
         """
     else
         """
         python -m pairsamtools stats --merge ${stats} -o ${library_group}.stats
+        chmod -R ugo+rw ./*
         """
 }
 
