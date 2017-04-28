@@ -404,7 +404,7 @@ process make_pairs_bam {
             --output-sam ${library}.unmapped.bam \
             ) | \
         pairsamtools dedup \
-            --max-mismatch ${params.filtering.pcr_duplicates_mismatch_bp}
+            --max-mismatch ${params.filtering.pcr_dups_max_mismatch_bp} \
             --output \
                 >( pairsamtools split \
                     --output-pairs ${library}.nodups.pairs.gz \

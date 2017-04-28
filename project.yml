@@ -59,6 +59,9 @@ binning:
         - 20000
         - 10000
 
+filtering:
+    pcr_dups_max_mismatch_bp: 3
+
 output:
     base_path: './output/'
     dirs:
