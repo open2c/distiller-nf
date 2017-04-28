@@ -12,7 +12,7 @@ boolean isSingleFile(object) {
 }
 
 LIB_RUN_SOURCES = Channel.from(
-    params.fastq_paths.collect{
+    params.input.raw_reads_paths.collect{
         k, v -> v.collect{k2, v2 -> [k,k2]+v2}}.sum())
 
 /*
@@ -80,7 +80,7 @@ LIB_RUN_FASTQS
     .set{LIB_RUN_FASTQS}
 
 LIB_RUN_FASTQS_FOR_QC
-    .filter { it -> params.get('do_fastqc', 'false').toBoolean() }
+    .filter { it -> params.mapping.get('do_fastqc', 'false').toBoolean() }
     .map{ v -> [v[0], v[1], [[1,file(v[2])], [2,file(v[3])]]]} 
     .flatMap{ 
         vs -> vs[2].collect{ 
@@ -123,7 +123,7 @@ LIB_RUN_FASTQS_NO_CHUNK = Channel.create()
 LIB_RUN_FASTQS_FOR_CHUNK = Channel.create()
 LIB_RUN_FASTQS
     .choice(LIB_RUN_FASTQS_NO_CHUNK, LIB_RUN_FASTQS_FOR_CHUNK) {
-    it -> params.get('chunksize', 0) == 0 ? 0 : 1
+    it -> params.mapping.get('chunksize', 0) == 0 ? 0 : 1
 }
 
 
@@ -141,7 +141,7 @@ process chunk_fastqs {
 
 
     script:
-    chunksize_lines = 4 * params.chunksize
+    chunksize_lines = 4 * params.mapping.chunksize
    
     """
     zcat ${fastq1} | split -l ${chunksize_lines} -d \
@@ -194,12 +194,11 @@ LIB_RUN_CHUNK_FASTQ
     .set{LIB_RUN_CHUNK_FASTQ}
 
 BWA_INDEX = Channel.from([[
-             params.genome.bwa_index_basepath.split('/')[-1],
-             file(params.genome.bwa_index_basepath+'.amb'),
-             file(params.genome.bwa_index_basepath+'.ann'),
-             file(params.genome.bwa_index_basepath+'.bwt'),
-             file(params.genome.bwa_index_basepath+'.pac'),
-             file(params.genome.bwa_index_basepath+'.sa')
+             params.input.genome.bwa_index_wildcard
+                .split('/')[-1]
+                .replaceAll('\\*$', "")
+                .replaceAll('\\.$', ""),
+             file(params.input.genome.bwa_index_wildcard),
             ]])
 
 /*
@@ -211,8 +210,7 @@ process map_runs {
  
     input:
     set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQ
-    set val(bwa_index_base), file(bwa_index_amb), file(bwa_index_ann), 
-        file(bwa_index_bwt), file(bwa_index_pac), file(bwa_index_sa) from BWA_INDEX.first()
+    set val(bwa_index_base), file(bwa_index_files) from BWA_INDEX.first()
      
     output:
     set library, run, "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_BAMS
@@ -248,9 +246,9 @@ process parse_runs {
     set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
  
     script:
-    dropsam_flag = params.get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
-    dropreadid_flag = params.get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
-    stats_command = (params.get('do_stats', 'true').toBoolean() ?
+    dropsam_flag = params.mapping.get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
+    dropreadid_flag = params.mapping.get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
+    stats_command = (params.mapping.get('do_stats', 'true').toBoolean() ?
         "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
         "touch ${library}.${run}.stats" )
 
@@ -441,7 +439,7 @@ process index_pairs{
  * Bin indexed .pairs into .cool matrices.
  */ 
 
-CHROM_SIZES = Channel.from([ file(params.genome.chrom_sizes_path) ])
+CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
 process make_library_coolers{
     tag { "library:${library} resolution:${res}" }
@@ -449,7 +447,7 @@ process make_library_coolers{
 
     input:
         set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
-        each res from params.cooler_resolutions
+        each res from params.binning.resolutions
         file(chrom_sizes) from CHROM_SIZES.first()
 
     output:
@@ -457,7 +455,7 @@ process make_library_coolers{
 
     """
     cooler cload pairix \
-        --assembly ${params.genome.assembly} \
+        --assembly ${params.input.genome.assembly} \
         ${chrom_sizes}:${res} ${pairs_lib} ${library}.${res}.cool
     chmod -R ugo+rw ./*
     """
@@ -469,7 +467,7 @@ process make_library_coolers{
  */ 
 
 
-LIBRARY_GROUPS = Channel.from( params.library_groups.collect{ k, v -> [k, v] })
+LIBRARY_GROUPS = Channel.from( params.input.library_groups.collect{ k, v -> [k, v] })
 
 LIBRARY_GROUPS
     .combine(LIB_RES_COOLERS)
@@ -500,7 +498,7 @@ process make_library_group_coolers{
  */ 
 
 
-LIBRARY_GROUPS = Channel.from( params.library_groups.collect{ k, v -> [k, v] })
+LIBRARY_GROUPS = Channel.from( params.input.library_groups.collect{ k, v -> [k, v] })
 
 LIBRARY_GROUPS
     .combine(LIB_STATS.mix(LIB_DEDUP_STATS))

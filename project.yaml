@@ -1,61 +1,60 @@
-project: "test"
-
-project_folder: 'test/' # either absolute or relative to the current working directory!
-
 #fastq_paths: 'fastq/' # either absolute or relative to the project folder!
 
 # Alternatively, fastqs can be specified as either paths relative to the 
 # project folder or as absolute paths.
-fastq_paths:
-    MATalpha_R1:
-        lane1:
-            - ./test/fastq/MATalpha_R1/lane1/SRR2601842_1.fastq.gz
-            - ./test/fastq/MATalpha_R1/lane1/SRR2601842_2.fastq.gz
-        lane2:
-            - sra:SRR2601843?start=0&end=10000
-    MATalpha_R2:
-        lane1:
-            - ./test/fastq/MATalpha_R2/lane1/SRR2601845_1.fastq.gz
-            - ./test/fastq/MATalpha_R2/lane1/SRR2601845_2.fastq.gz
-    MATa_R1:
-        lane1:
-            - ./test/fastq/MATa_R1/lane1/SRR2601848_1.fastq.gz
-            - ./test/fastq/MATa_R1/lane1/SRR2601848_2.fastq.gz
-    MATa_R2:
-        lane1:
-            - ./test/fastq/MATa_R2/lane1/SRR2601851_1.fastq.gz
-            - ./test/fastq/MATa_R2/lane1/SRR2601851_2.fastq.gz
+input:
+    raw_reads_paths:
+        MATalpha_R1:
+            lane1:
+                - ./test/fastq/MATalpha_R1/lane1/SRR2601842_1.fastq.gz
+                - ./test/fastq/MATalpha_R1/lane1/SRR2601842_2.fastq.gz
+            lane2:
+                - sra:SRR2601843?start=0&end=10000
+        MATalpha_R2:
+            lane1:
+                - ./test/fastq/MATalpha_R2/lane1/SRR2601845_1.fastq.gz
+                - ./test/fastq/MATalpha_R2/lane1/SRR2601845_2.fastq.gz
+        MATa_R1:
+            lane1:
+                - ./test/fastq/MATa_R1/lane1/SRR2601848_1.fastq.gz
+                - ./test/fastq/MATa_R1/lane1/SRR2601848_2.fastq.gz
+        MATa_R2:
+            lane1:
+                - ./test/fastq/MATa_R2/lane1/SRR2601851_1.fastq.gz
+                - ./test/fastq/MATa_R2/lane1/SRR2601851_2.fastq.gz
 
-library_groups:
-    MATalpha:
-        - MATalpha_R1
-        - MATalpha_R2
-    MATa:
-        - MATa_R1
-        - MATa_R2
-    all:
-        - MATa_R1
-        - MATa_R2
-        - MATalpha_R1
-        - MATalpha_R2
+    library_groups:
+        MATalpha:
+            - MATalpha_R1
+            - MATalpha_R2
+        MATa:
+            - MATa_R1
+            - MATa_R2
+        all:
+            - MATa_R1
+            - MATa_R2
+            - MATalpha_R1
+            - MATalpha_R2
 
-genome:
-    assembly: 'sacCer3'
-    bwa_index_basepath: 'test/genome/sacCer3.fa.gz'
-    chrom_sizes_path: 'test/genome/sacCer3.chrom.sizes'
+    genome:
+        assembly: 'sacCer3'
+        bwa_index_wildcard: 'test/genome/sacCer3.fa.gz.*'
+        chrom_sizes_path: 'test/genome/sacCer3.chrom.sizes'
 
-#chunksize: 0
-chunksize: 30000
-#drop_sam: True
-#drop_readid: True
-do_fastqc: True
-do_stats: False
 
-cooler_resolutions:
-    - 1000000
-    - 400000
-    - 200000
-    - 100000
-    - 40000
-    - 20000
-    - 10000
+mapping:
+    chunksize: 30000
+    #drop_sam: True
+    #drop_readid: True
+    do_fastqc: True
+    do_stats: False
+
+binning:
+    resolutions:
+        - 1000000
+        - 400000
+        - 200000
+        - 100000
+        - 40000
+        - 20000
+        - 10000
