@@ -62,7 +62,6 @@ process download_sra {
         fastq-dump -F ${sra_cli} --split-files --gzip
         mv ${srr}_1.fastq.gz ${library}.${run}.1.fastq.gz
         mv ${srr}_2.fastq.gz ${library}.${run}.2.fastq.gz
-        chmod -R ugo+rw ./*
         """
     else
         error "Runs can be defined with one line only with SRA"
@@ -113,7 +112,6 @@ process fastqc{
     ln -s \$(readlink -f ${fastq}) ./temp_fastqc/${library}.${run}.${side}.fastq.gz
     fastqc -o ./ -f fastq ./temp_fastqc/${library}.${run}.${side}.fastq.gz
     rm -r ./temp_fastqc/
-    chmod -R ugo+rw ./*
     """
           
 }
@@ -156,7 +154,6 @@ process chunk_fastqs {
     zcat ${fastq2} | split -l ${chunksize_lines} -d \
         --filter 'gzip > \$FILE.2.fastq.gz' - \
         ${library}.${run}.
-    chmod -R ugo+rw ./*
     """
 }
 
@@ -224,7 +221,6 @@ process map_runs {
     bwa mem -SP ${bwa_index_base} ${fastq1} ${fastq2} \
         | samtools view -bS > ${library}.${run}.${chunk}.bam \
         | cat
-    chmod -R ugo+rw ./*
     """
 }
 
@@ -263,7 +259,6 @@ process parse_runs {
             | pairsamtools sort -o ${library}.${run}.pairsam.gz --tmpdir ./ \
             | cat
         ${stats_command}
-        chmod -R ugo+rw ./*
         """
     else 
         """
@@ -275,7 +270,6 @@ process parse_runs {
 
 
         ${stats_command}
-        chmod -R ugo+rw ./*
         """
 }
 
@@ -304,12 +298,10 @@ process merge_runs_into_libraries {
     if( isSingleFile(run_pairsam))
         """
         ln -s \$(readlink -f ${run_pairsam}) ${library}.pairsam.gz
-        chmod -R ugo+rw ./*
         """
     else
         """
         pairsamtools merge ${run_pairsam} -o ${library}.pairsam.gz
-        chmod -R ugo+rw ./*
         """
 }
 
@@ -336,12 +328,10 @@ process merge_stats_runs_into_libraries {
     if( isSingleFile(run_stats))
         """
         ln -s ${run_stats} ${library}.stats
-        chmod -R ugo+rw ./*
         """
     else
         """
         pairsamtools stats --merge ${run_stats} -o ${library}.stats
-        chmod -R ugo+rw ./*
         """
 }
 
@@ -409,7 +399,6 @@ process make_pairs_bam {
             | cat
 
 
-    chmod -R ugo+rw ./*
     """
 }
 
@@ -434,7 +423,6 @@ process index_pairs{
  
     """
     pairix ${pairs_lib}
-    chmod -R ugo+rw ./*
     """
 }
 
@@ -462,7 +450,6 @@ process make_library_coolers{
     cooler cload pairix \
         --assembly ${params.input.genome.assembly} \
         ${chrom_sizes}:${res} ${pairs_lib} ${library}.${res}.cool
-    chmod -R ugo+rw ./*
     """
 }
 
@@ -493,7 +480,6 @@ process make_library_group_coolers{
 
     """
     cooler merge ${library_group}.${res}.cool ${coolers}
-    chmod -R ugo+rw ./*
     """
 }
 
@@ -527,12 +513,10 @@ process merge_stats_libraries_into_groups {
     if( isSingleFile(stats))
         """
         ln -s ${stats} ${library_group}.stats
-        chmod -R ugo+rw ./*
         """
     else
         """
         pairsamtools stats --merge ${stats} -o ${library_group}.stats
-        chmod -R ugo+rw ./*
         """
 }
 
