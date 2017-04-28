@@ -11,6 +11,11 @@ boolean isSingleFile(object) {
     } ) || (object.size() == 1)
 }
 
+String getOutDir(output_type) {
+    new File(params.output.get('base_path', ''),
+             params.output.dirs.get(output_type, output_type)).getCanonicalPath()
+}
+
 LIB_RUN_SOURCES = Channel.from(
     params.input.raw_reads_paths.collect{
         k, v -> v.collect{k2, v2 -> [k,k2]+v2}}.sum())
@@ -93,7 +98,7 @@ LIB_RUN_FASTQS_FOR_QC
 process fastqc{
 
     tag { "library:${library} run:${run} side:${side}" }
-    publishDir path:"fastqc/", mode:"copy"
+    publishDir path: getOutDir('fastqc'), mode:"copy"
 
     input:
     set val(library), val(run), val(side), file(fastq) from LIB_RUN_SIDE_FASTQS_FOR_QC
@@ -236,7 +241,7 @@ LIB_RUN_CHUNK_BAMS
 process parse_runs {
     tag { "library:${library} run:${run}" }
     storeDir "intermediates/pairsam/runs"
-    publishDir path:"stats/runs/", pattern: "*.stats", mode:"copy"
+    publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
  
     input:
     set val(library), val(run), file(bam) from LIB_RUN_BAMS
@@ -255,7 +260,7 @@ process parse_runs {
     if( isSingleFile(bam))
         """
         pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${bam} \
-            | pairsamtools sort -o ${library}.${run}.pairsam.gz \
+            | pairsamtools sort -o ${library}.${run}.pairsam.gz --tmpdir ./ \
             | cat
         ${stats_command}
         chmod -R ugo+rw ./*
@@ -319,7 +324,7 @@ LIB_RUN_STATS
 
 process merge_stats_runs_into_libraries {
     tag { "library:${library}" }
-    publishDir path:"stats/libraries", pattern: "*.stats", mode:"copy"
+    publishDir path: getOutDir('stats_library'), pattern: "*.stats", mode:"copy"
  
     input:
     set val(library), file(run_stats) from LIB_STATS_TO_MERGE
@@ -348,27 +353,27 @@ process merge_stats_runs_into_libraries {
 
 process make_pairs_bam {
     tag { "library:${library}" }
-    publishDir path:'./', saveAs: {
+    publishDir path:'/', saveAs: {
       if( it.endsWith('.nodups.pairs.gz' ))
-        return "pairs/libraries/${library}.nodups.pairs.gz"
+        return getOutDir("pairs_library") +"/${library}.nodups.pairs.gz"
 
       if( it.endsWith('.nodups.bam' ))
-        return "sam/libraries/${library}.nodups.bam"
+        return getOutDir("bams_library") +"/${library}.nodups.bam"
 
       if( it.endsWith('.dups.pairs.gz' ))
-        return "pairs/libraries/${library}.dups.pairs.gz"
+        return getOutDir("pairs_library") +"/${library}.dups.pairs.gz"
 
       if( it.endsWith('.nodups.bam' ))
-        return "sam/libraries/${library}.dups.bam"
+        return getOutDir("bams_library") +"/${library}.dups.bam"
 
       if( it.endsWith('.unmapped.pairs.gz' ))
-        return "pairs/libraries/${library}.unmapped.pairs.gz"
+        return getOutDir("pairs_library") +"/${library}.unmapped.pairs.gz"
 
       if( it.endsWith('.nodups.bam' ))
-        return "sam/libraries/${library}.unmapped.bam"
+        return getOutDir("bams_library") +"/${library}.unmapped.bam"
 
       if( it.endsWith('.dedup.stats' ))
-        return "stats/libraries/${library}.dedup.stats.tsv"
+        return getOutDir("stats_library") +"/${library}.dedup.stats.tsv"
     }
  
     input:
@@ -419,7 +424,7 @@ LIB_PAIRS_BAMS
 
 process index_pairs{
     tag { "library:${library}" }
-    publishDir path:"pairs/libraries/", saveAs: {"${library}.nodups.pairs.gz.px2"}
+    publishDir path: getOutDir('pairs_library'), saveAs: {"${library}.nodups.pairs.gz.px2"}
 
     input:
     set val(library), file(pairs_lib) from LIB_PAIRS
@@ -443,7 +448,7 @@ CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
 process make_library_coolers{
     tag { "library:${library} resolution:${res}" }
-    publishDir path:"coolers/libraries/", saveAs: {"${library}.${res}.cool"}
+    publishDir path: getOutDir('coolers_library'), saveAs: {"${library}.${res}.cool"}
 
     input:
         set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
@@ -478,7 +483,7 @@ LIBRARY_GROUPS
 
 process make_library_group_coolers{
     tag {"library_group:${library_group} resolution:${res}"}
-    publishDir path:"coolers/library_groups/", saveAs: {"${library_group}.${res}.cool"}
+    publishDir path: getOutDir('coolers_library_group'), saveAs: {"${library_group}.${res}.cool"}
 
     input:
         set val(library_group), val(res), file(coolers) from LIBGROUP_RES_COOLERS_TO_MERGE
@@ -510,7 +515,7 @@ LIBRARY_GROUPS
 
 process merge_stats_libraries_into_groups {
     tag { "library_group:${library_group}" }
-    publishDir path:"stats/library_groups", pattern: "*.stats", mode:"copy"
+    publishDir path: getOutDir('stats_library_group'), pattern: "*.stats", mode:"copy"
  
     input:
     set val(library_group), file(stats) from LIBGROUP_STATS_TO_MERGE
