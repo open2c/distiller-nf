@@ -42,14 +42,18 @@ input:
         chrom_sizes_path: 'test/genome/sacCer3.chrom.sizes'
 
 
-mapping:
+map:
     chunksize: 30000
     #drop_sam: True
     #drop_readid: True
+    #drop_seq: True
     do_fastqc: True
     #do_stats: False
 
-binning:
+filter:
+    pcr_dups_max_mismatch_bp: 3
+
+bin:
     resolutions:
         - 1000000
         - 400000
@@ -58,9 +62,6 @@ binning:
         - 40000
         - 20000
         - 10000
-
-filtering:
-    pcr_dups_max_mismatch_bp: 3
 
 output:
     base_path: './output/'

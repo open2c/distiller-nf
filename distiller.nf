@@ -86,7 +86,7 @@ LIB_RUN_FASTQS
     .set{LIB_RUN_FASTQS}
 
 LIB_RUN_FASTQS_FOR_QC
-    .filter { it -> params.mapping.get('do_fastqc', 'false').toBoolean() }
+    .filter { it -> params['map'].get('do_fastqc', 'false').toBoolean() }
     .map{ v -> [v[0], v[1], [[1,file(v[2])], [2,file(v[3])]]]} 
     .flatMap{ 
         vs -> vs[2].collect{ 
@@ -100,6 +100,7 @@ process fastqc{
 
     tag "library:${library} run:${run} side:${side}"
     publishDir path: getOutDir('fastqc'), mode:"copy"
+    cpus params.fastqc_cpus
 
     input:
     set val(library), val(run), val(side), file(fastq) from LIB_RUN_SIDE_FASTQS_FOR_QC
@@ -112,7 +113,7 @@ process fastqc{
     """
     mkdir -p ./temp_fastqc/
     ln -s \$(readlink -f ${fastq}) ./temp_fastqc/${library}.${run}.${side}.fastq.gz
-    fastqc -o ./ -f fastq ./temp_fastqc/${library}.${run}.${side}.fastq.gz
+    fastqc --threads ${task.cpus} -o ./ -f fastq ./temp_fastqc/${library}.${run}.${side}.fastq.gz
     rm -r ./temp_fastqc/
     """
           
@@ -128,7 +129,7 @@ LIB_RUN_FASTQS_NO_CHUNK = Channel.create()
 LIB_RUN_FASTQS_FOR_CHUNK = Channel.create()
 LIB_RUN_FASTQS
     .choice(LIB_RUN_FASTQS_NO_CHUNK, LIB_RUN_FASTQS_FOR_CHUNK) {
-    it -> params.mapping.get('chunksize', 0) == 0 ? 0 : 1
+    it -> params['map'].get('chunksize', 0) == 0 ? 0 : 1
 }
 
 
@@ -146,7 +147,7 @@ process chunk_fastqs {
 
 
     script:
-    chunksize_lines = 4 * params.mapping.chunksize
+    chunksize_lines = 4 * params['map'].chunksize
    
     """
     zcat ${fastq1} | split -l ${chunksize_lines} -d \
@@ -212,7 +213,7 @@ process map_runs {
     tag "library:${library} run:${run} chunk:${chunk}"
     storeDir "intermediates/sam/runs"
 
-    cpus 8
+    cpus params.map_cpus
  
     input:
     set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQ
@@ -243,7 +244,7 @@ process parse_runs {
     storeDir "intermediates/pairsam/runs"
     publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
 
-    cpus 8
+    cpus params.parsing_cpus
  
     input:
     set val(library), val(run), file(bam) from LIB_RUN_BAMS
@@ -253,16 +254,17 @@ process parse_runs {
     set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
  
     script:
-    dropsam_flag = params.mapping.get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
-    dropreadid_flag = params.mapping.get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
-    stats_command = (params.mapping.get('do_stats', 'true').toBoolean() ?
+    dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
+    dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
+    dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
+    stats_command = (params['map'].get('do_stats', 'true').toBoolean() ?
         "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
         "touch ${library}.${run}.stats" )
 
     if( isSingleFile(bam))
         """
         mkdir ./tmp4sort
-        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${bam} \
+        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} ${bam} \
             | pairsamtools sort --nproc ${task.cpus} \
                                 -o ${library}.${run}.pairsam.gz \
                                 --tmpdir ./tmp4sort \
@@ -277,7 +279,7 @@ process parse_runs {
         mkdir ./tmp4sort
         cat <( samtools merge - ${bam} | samtools view -H ) \
             <( samtools cat ${bam} | samtools view ) \
-            | pairsamtools parse ${dropsam_flag} ${dropreadid_flag} \
+            | pairsamtools parse ${dropsam_flag} ${dropseq_flag} ${dropreadid_flag} \
             | pairsamtools sort --nproc ${task.cpus} \
                                 -o ${library}.${run}.pairsam.gz \
                                 --tmpdir ./tmp4sort \
@@ -304,7 +306,7 @@ process merge_runs_into_libraries {
     tag "library:${library}"
     storeDir "intermediates/pairsam/libraries"
 
-    cpus 8
+    cpus params.merge_cpus
  
     input:
     set val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_MERGE
@@ -359,7 +361,7 @@ process merge_stats_runs_into_libraries {
  * Make pairs bam
  */
 
-process make_pairs_bam {
+process filter_make_pairs {
     tag "library:${library}"
     publishDir path:'/', saveAs: {
       if( it.endsWith('.nodups.pairs.gz' ))
@@ -384,7 +386,7 @@ process make_pairs_bam {
         return getOutDir("stats_library") +"/${library}.dedup.stats.tsv"
     }
 
-    cpus 8
+    cpus params.filter_make_pairs_cpus
  
     input:
     set val(library), file(pairsam_lib) from LIB_PAIRSAMS
@@ -404,7 +406,7 @@ process make_pairs_bam {
             --output-sam ${library}.unmapped.bam \
             ) | \
         pairsamtools dedup \
-            --max-mismatch ${params.filtering.pcr_dups_max_mismatch_bp} \
+            --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
             --output \
                 >( pairsamtools split \
                     --output-pairs ${library}.nodups.pairs.gz \
@@ -455,15 +457,15 @@ process index_pairs{
 
 CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
-process make_library_coolers{
+process bin_library_pairs{
     tag "library:${library} resolution:${res}"
     publishDir path: getOutDir('coolers_library'), saveAs: {"${library}.${res}.cool"}
 
-    cpus 8
+    cpus params.bin_cpus
 
     input:
         set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
-        each res from params.binning.resolutions
+        each res from params['bin'].resolutions
         file(chrom_sizes) from CHROM_SIZES.first()
 
     output:
