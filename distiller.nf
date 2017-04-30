@@ -244,7 +244,7 @@ process parse_runs {
     storeDir "intermediates/pairsam/runs"
     publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
 
-    cpus params.parsing_cpus
+    cpus params.parse_cpus
  
     input:
     set val(library), val(run), file(bam) from LIB_RUN_BAMS
