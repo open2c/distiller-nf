@@ -14,8 +14,14 @@ boolean isSingleFile(object) {
 }
 
 String getOutDir(output_type) {
-    new File(params.output.get('base_path', ''),
+    new File(params.output.get('base_dir', ''),
              params.output.dirs.get(output_type, output_type)).getCanonicalPath()
+}
+
+String getIntermediateDir(intermediate_type) {
+    new File(params.intermediates.get('base_dir', ''),
+             params.intermediates.dirs.get(
+                intermediate_type, intermediate_type)).getCanonicalPath()
 }
 
 LIB_RUN_SOURCES = Channel.from(
@@ -36,7 +42,7 @@ LIB_RUN_SOURCES.choice(LIB_RUN_SRAS, LIB_RUN_FASTQS) {
 
 process download_sra {
     tag "$query"
-    storeDir "intermediates/downloaded_fastqs"
+    storeDir getIntermediateDir('downloaded_fastqs')
  
     input:
     set val(library), val(run), val(query) from LIB_RUN_SRAS
@@ -86,7 +92,7 @@ LIB_RUN_FASTQS
     .set{LIB_RUN_FASTQS}
 
 LIB_RUN_FASTQS_FOR_QC
-    .filter { it -> params['map'].get('do_fastqc', 'false').toBoolean() }
+    .filter { it -> params.get('do_fastqc', 'false').toBoolean() }
     .map{ v -> [v[0], v[1], [[1,file(v[2])], [2,file(v[3])]]]} 
     .flatMap{ 
         vs -> vs[2].collect{ 
@@ -135,7 +141,7 @@ LIB_RUN_FASTQS
 
 process chunk_fastqs {
     tag "library:${library} run:${run}"
-    storeDir "intermediates/fastq_chunks"
+    storeDir getIntermediateDir('fastq_chunks')
 
     input:
     set val(library), val(run),file(fastq1), file(fastq2) from LIB_RUN_FASTQS_FOR_CHUNK
@@ -211,7 +217,7 @@ BWA_INDEX = Channel.from([[
  */
 process map_runs {
     tag "library:${library} run:${run} chunk:${chunk}"
-    storeDir "intermediates/sam/runs"
+    storeDir getIntermediateDir('bam_run')
 
     cpus params.map_cpus
  
@@ -241,7 +247,7 @@ LIB_RUN_CHUNK_BAMS
 
 process parse_runs {
     tag "library:${library} run:${run}"
-    storeDir "intermediates/pairsam/runs"
+    storeDir getIntermediateDir('pairsam_run')
     publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
 
     cpus params.parse_cpus
@@ -257,7 +263,7 @@ process parse_runs {
     dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
     dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
     dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
-    stats_command = (params['map'].get('do_stats', 'true').toBoolean() ?
+    stats_command = (params.get('do_stats', 'true').toBoolean() ?
         "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
         "touch ${library}.${run}.stats" )
 
@@ -304,7 +310,7 @@ LIB_RUN_PAIRSAMS
 
 process merge_runs_into_libraries {
     tag "library:${library}"
-    storeDir "intermediates/pairsam/libraries"
+    storeDir getIntermediateDir('bam_runs')
 
     cpus params.merge_cpus
  
@@ -363,7 +369,7 @@ process merge_stats_runs_into_libraries {
 
 process filter_make_pairs {
     tag "library:${library}"
-    publishDir path:'/', saveAs: {
+    publishDir path:'/', mode:"copy", saveAs: {
       if( it.endsWith('.nodups.pairs.gz' ))
         return getOutDir("pairs_library") +"/${library}.nodups.pairs.gz"
 
@@ -436,7 +442,7 @@ LIB_PAIRS_BAMS
 
 process index_pairs{
     tag "library:${library}"
-    publishDir path: getOutDir('pairs_library'), saveAs: {"${library}.nodups.pairs.gz.px2"}
+    publishDir path: getOutDir('pairs_library'), mode:"copy", saveAs: {"${library}.nodups.pairs.gz.px2"}
 
     input:
     set val(library), file(pairs_lib) from LIB_PAIRS
@@ -459,7 +465,7 @@ CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
 process bin_library_pairs{
     tag "library:${library} resolution:${res}"
-    publishDir path: getOutDir('coolers_library'), saveAs: {"${library}.${res}.cool"}
+    publishDir path: getOutDir('coolers_library'), mode:"copy", saveAs: {"${library}.${res}.cool"}
 
     cpus params.bin_cpus
 
@@ -496,7 +502,7 @@ LIBRARY_GROUPS
 
 process make_library_group_coolers{
     tag "library_group:${library_group} resolution:${res}"
-    publishDir path: getOutDir('coolers_library_group'), saveAs: {"${library_group}.${res}.cool"}
+    publishDir path: getOutDir('coolers_library_group'), mode:"copy", saveAs: {"${library_group}.${res}.cool"}
 
     input:
         set val(library_group), val(res), file(coolers) from LIBGROUP_RES_COOLERS_TO_MERGE

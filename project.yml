@@ -1,4 +1,9 @@
-#fastq_paths: 'fastq/' # either absolute or relative to the project folder!
+do_fastqc: True
+#do_stats: False
+    
+
+#input:
+#   raw_read_paths: 'fastq/' # either absolute or relative to the project folder!
 
 # Alternatively, fastqs can be specified as either paths relative to the 
 # project folder or as absolute paths.
@@ -41,14 +46,11 @@ input:
         bwa_index_wildcard: 'test/genome/sacCer3.fa.gz.*'
         chrom_sizes_path: 'test/genome/sacCer3.chrom.sizes'
 
-
 map:
     chunksize: 30000
     #drop_sam: True
     #drop_readid: True
     #drop_seq: True
-    do_fastqc: True
-    #do_stats: False
 
 filter:
     pcr_dups_max_mismatch_bp: 3
@@ -63,8 +65,16 @@ bin:
         - 20000
         - 10000
 
+intermediates:
+    base_dir: 'test/intermediates/'
+    dirs:
+        downloaded_fastqs: 'downloaded_fastqs/'
+        fastq_chunks: 'fastq_chunks'
+        bam_run: 'bam/run'
+        pairsam_run: 'pairsam/run'
+
 output:
-    base_path: './output/'
+    base_dir: 'test/output/'
     dirs:
         fastqc: 'fastqc/'
         pairs_library: 'pairs/library/'
