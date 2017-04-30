@@ -19,6 +19,6 @@ dependencies:
     - pairix
     - bwa==0.7.15
     - pip:
-        - cooler==0.7.0
+        - cooler>=0.7.1
         - git+git://github.com/mirnylab/pairsamtools
         - toolz
