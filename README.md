@@ -34,7 +34,7 @@ in `project.yml`
 Launch distiller as:
 
 ```sh
-$ nextflow distiller.nf -params-file project.yml -C nextflow.config
+$ nextflow distiller.nf -params-file project.yml
 ```
 
 ### Example
