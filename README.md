@@ -39,17 +39,11 @@ $ nextflow distiller.nf -params-file project.yml -C nextflow.config
 
 ### Example
 
-To launch the example, you will require:
-- java
-- nextflow
-- sratools (the latest version)
-- bwa
-
-In a new folder, execute:
+In a new project folder, execute:
 
 ```sh
 $ nextflow clone mirnylab/distiller  ./
 $ bash setup_test.sh
-$ nextflow distiller.nf -params-file project.yml -C nextflow.config
+$ nextflow distiller.nf -params-file project.yml 
 ```
 
