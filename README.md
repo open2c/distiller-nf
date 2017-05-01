@@ -21,18 +21,35 @@ Requirements:
 To setup a new project, execute the following line in the project folder:
 
 ```sh
-$ nextflow clone mirnylab/distiller
+$ nextflow clone mirnylab/distiller ./
 ```
 
 This will download the distiller pipeline and the configuration files.
 
 Then:
 - configure the location of the input files and other project details
-in project.yml 
-- configure the hardware/system details in nextflow.config
+in `project.yml`
+- configure the hardware/system details in `nextflow.config`
 
 Launch distiller as:
 
 ```sh
 $ nextflow distiller.nf -params-file project.yml -C nextflow.config
 ```
+
+### Example
+
+To launch the example, you will require:
+- java
+- nextflow
+- sratools (the latest version)
+- bwa
+
+In a new folder, execute:
+
+```sh
+$ nextflow clone mirnylab/distiller  ./
+$ bash setup_test.sh
+$ nextflow distiller.nf -params-file project.yml -C nextflow.config
+```
+
