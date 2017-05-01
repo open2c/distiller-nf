@@ -2,11 +2,13 @@ do_fastqc: True
 #do_stats: False
     
 
-#input:
-#   raw_read_paths: 'fastq/' # either absolute or relative to the project folder!
-
-# Alternatively, fastqs can be specified as either paths relative to the 
-# project folder or as absolute paths.
+# Fastqs can be provided as:
+# -- a pairs of relative/absolute paths
+# -- sra:<SRA_NUMBER>, optionally followed by the indices of the first and
+# the last entry in the SRA in the form of "?start=<first>&end=<last>
+# [to implement] -- as a path to a folder with fastqs '<base_folder>', with the structure 
+# <base_folder>/<library_name>/<run_name>/, with each folder containing only
+# two fastq.gz files
 input:
     raw_reads_paths:
         MATalpha_R1:
@@ -84,7 +86,4 @@ output:
         coolers_library: 'coolers/library/'
         coolers_library_group: 'coolers/library_group/'
         bams_library: 'bams/library_group/'
-
-
-
 
