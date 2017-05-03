@@ -13,4 +13,4 @@ function cleanup {
 
 trap cleanup EXIT
 
-docker build -t $USERNAME/$IMAGE:latest .
+docker build -t $USERNAME/$IMAGE:latest . 
