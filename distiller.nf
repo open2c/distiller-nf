@@ -312,7 +312,7 @@ LIB_RUN_PAIRSAMS
 
 process merge_runs_into_libraries {
     tag "library:${library}"
-    storeDir getIntermediateDir('bam_runs')
+    storeDir getIntermediateDir('pairsam_library')
 
     cpus params.merge_cpus
  

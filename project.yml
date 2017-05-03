@@ -74,6 +74,7 @@ intermediates:
         fastq_chunks: 'fastq_chunks'
         bam_run: 'bam/run'
         pairsam_run: 'pairsam/run'
+        pairsam_library: 'pairsam/library'
 
 output:
     base_dir: 'test/output/'
