@@ -2,8 +2,7 @@ os:
     - linux
     - osx
 
-#sudo: required
-sudo: false
+sudo: required
 
 language: groovy
 
@@ -13,7 +12,10 @@ services:
 before_install:
     - docker pull mirnylab/distiller_env:latest
 
-script:
+install:
     - curl -fsSL get.nextflow.io | bash 
+    - export PATH="`pwd`:${PATH}"
+
+script:
     - bash setup_test.sh
-    - ./nextflow distiller.nf -params-file project.yml
+    - nextflow distiller.nf -params-file project.yml
