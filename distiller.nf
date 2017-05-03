@@ -143,6 +143,8 @@ process chunk_fastqs {
     tag "library:${library} run:${run}"
     storeDir getIntermediateDir('fastq_chunks')
 
+    cpus params.chunk_cpus
+
     input:
     set val(library), val(run),file(fastq1), file(fastq2) from LIB_RUN_FASTQS_FOR_CHUNK
 
@@ -157,11 +159,11 @@ process chunk_fastqs {
    
     """
     zcat ${fastq1} | split -l ${chunksize_lines} -d \
-        --filter 'gzip > \$FILE.1.fastq.gz' - \
+        --filter 'pbgzip -c -n ${task.cpus} > \$FILE.1.fastq.gz' - \
         ${library}.${run}.
 
     zcat ${fastq2} | split -l ${chunksize_lines} -d \
-        --filter 'gzip > \$FILE.2.fastq.gz' - \
+        --filter 'pbgzip -c -n ${task.cpus} > \$FILE.2.fastq.gz' - \
         ${library}.${run}.
     """
 }
