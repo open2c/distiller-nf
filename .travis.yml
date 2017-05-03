@@ -8,9 +8,7 @@ services:
 before_install:
     - docker pull mirnylab/distiller_env:latest
 
-install:
-    - curl -fsSL get.nextflow.io | bash 
-
 script:
+    - curl -fsSL get.nextflow.io | bash 
     - bash setup_test.sh
     - nextflow distiller.nf -params-file project.yml
