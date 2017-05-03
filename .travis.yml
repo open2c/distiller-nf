@@ -1,0 +1,16 @@
+sudo: required
+
+language: groovy
+
+services:
+    - docker
+
+before_install:
+    - docker pull mirnylab/docker:latest
+
+install:
+    - curl -fsSL get.nextflow.io | bash 
+
+script:
+    - bash setup_test.sh
+    - nextflow distiller.nf -params-file project.yml
