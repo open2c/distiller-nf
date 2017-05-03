@@ -1,4 +1,9 @@
-sudo: required
+os:
+    - linux
+    - osx
+
+#sudo: required
+sudo: false
 
 language: groovy
 
