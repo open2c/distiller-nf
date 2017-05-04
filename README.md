@@ -1,5 +1,7 @@
 # distiller-nf
 
+[![Build Status](https://travis-ci.org/mirnylab/distiller-nf.svg?branch=master)](https://travis-ci.org/mirnylab/distiller-nf)
+
 ## A modular Hi-C mapping pipeline for reproducible data analysis.
 
 The `distiller` pipeline aims to provide the following functionality:
