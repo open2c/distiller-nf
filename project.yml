@@ -1,5 +1,5 @@
 do_fastqc: True
-#do_stats: False
+#do_stats: True
     
 
 # Fastqs can be provided as:
@@ -54,10 +54,10 @@ input:
         chrom_sizes_path: 'test/genome/sacCer3.chrom.sizes'
 
 map:
-    chunksize: 30000
-    #drop_sam: True
-    #drop_readid: True
-    #drop_seq: True
+    chunksize: 6000
+    #drop_sam: False
+    #drop_readid: False
+    #drop_seq: False
 
 filter:
     pcr_dups_max_mismatch_bp: 3
