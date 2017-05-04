@@ -15,13 +15,15 @@ input:
             lane1:
                 - ./test/fastq/MATalpha_R1/lane1/SRR2601842_1.fastq.gz
                 - ./test/fastq/MATalpha_R1/lane1/SRR2601842_2.fastq.gz
+#                 Alternatively, reads can be downloaded from SRA
+#                - sra:SRR2601842
+#                 - sra:SRR2601843?start=0&end=10000
             lane2:
-                - ./test/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
-                - ./test/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
-# Alternatively, reads can be downloaded from SRA
-#            lane2:
-#                - sra:SRR2601843
-#                - sra:SRR2601843?start=0&end=10000
+#                 Files can also be provided as http/ftp/s3 links
+                - https://github.com/mirnylab/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
+                - https://github.com/mirnylab/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
+#                - ./test/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
+#                - ./test/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
         MATalpha_R2:
             lane1:
                 - ./test/fastq/MATalpha_R2/lane1/SRR2601845_1.fastq.gz

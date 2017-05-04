@@ -53,9 +53,13 @@ process download_sra {
         "${library}.${run}.2.fastq.gz" into LIB_RUN_FASTQ_SRA
  
     script:
+    if( query == null) error "No files provided for library ${library}, run ${run}"
+
     sra_cli = query.tokenize(':')[-1]
-    srr = sra_cli.tokenize('\\?')[0]
-    sra_cli = (
+    srr = sra_cli.contains('?') ? sra_cli.tokenize('\\?')[0] : sra_cli
+    srrnum = srr.reverse().take(3).reverse()
+    srrnum_three_digs = srrnum.take(3)
+    sra_cli = sra_cli.contains('?') ? (
         [srr]
         + sra_cli.tokenize('\\?')[-1].tokenize('&').collect{
             it.startsWith('start=') 
@@ -63,16 +67,28 @@ process download_sra {
             : it.startsWith('end=') 
                 ? (' --maxSpotId '+it.tokenize('=')[1])
                 : ''
-        }).join(' ')
+        }).join(' ') : ''
 
-    if( query.startsWith('sra:') )
-        """
-        fastq-dump -F ${sra_cli} --split-files --gzip
-        mv ${srr}_1.fastq.gz ${library}.${run}.1.fastq.gz
-        mv ${srr}_2.fastq.gz ${library}.${run}.2.fastq.gz
-        """
-    else
+    if( query.startsWith('sra:') ) {
+        if( query.contains('?') ) {
+            """ 
+            wget ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR${srrnum_three_digs}/${srr}/${srr}.sra -O ${srr}.sra
+            fastq-dump -F ${srr}.sra --split-files --gzip
+            mv ${srr}_1.fastq.gz ${library}.${run}.1.fastq.gz
+            mv ${srr}_2.fastq.gz ${library}.${run}.2.fastq.gz
+            """
+        }
+        else {
+            """
+            fastq-dump -F ${sra_cli} --split-files --gzip
+            mv ${srr}_1.fastq.gz ${library}.${run}.1.fastq.gz
+            mv ${srr}_2.fastq.gz ${library}.${run}.2.fastq.gz
+            """
+        }
+    }
+    else {
         error "Runs can be defined with one line only with SRA"
+    }
 
 }
 
