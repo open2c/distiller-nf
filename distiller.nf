@@ -268,6 +268,8 @@ process parse_runs {
     stats_command = (params.get('do_stats', 'true').toBoolean() ?
         "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
         "touch ${library}.${run}.stats" )
+    n_parse_processes = (int)Math.ceil(task.cpus / 2)
+    n_parse_processes = n_parse_processes < 1 ? 1 : n_parse_processes
 
     if( isSingleFile(bam))
         """
@@ -285,15 +287,17 @@ process parse_runs {
     else 
         """
         mkdir ./tmp4sort
-        cat <( samtools merge - ${bam} | samtools view -H ) \
-            <( samtools cat ${bam} | samtools view ) \
-            | pairsamtools parse ${dropsam_flag} ${dropseq_flag} ${dropreadid_flag} \
-            | pairsamtools sort --nproc ${task.cpus} \
-                                -o ${library}.${run}.pairsam.gz \
-                                --tmpdir ./tmp4sort \
-            | cat
+        mkdir ./tmp_pairsam
+        parallel -P${n_parse_processes} 'pairsamtools parse \
+            ${dropsam_flag} ${dropseq_flag} ${dropreadid_flag} {} \
+            | pairsamtools sort --nproc 4 \
+                                -o ./tmp_pairsam/{}.pairsam.gz \
+                                --tmpdir ./tmp4sort ' ::: ${bam}
 
+        pairsamtools merge ./tmp_pairsam/* --nproc ${task.cpus} -o ${library}.${run}.pairsam.gz
+    
         rm -rf ./tmp4sort
+        rm -rf ./tmp_pairsam
 
         ${stats_command}
         """
