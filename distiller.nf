@@ -391,7 +391,7 @@ process merge_stats_runs_into_libraries {
 
 process filter_make_pairs {
     tag "library:${library}"
-    publishDir path:'/', mode:"copy", saveAs: {
+    publishDir path:'.', mode:"copy", saveAs: {
       if( it.endsWith('.nodups.pairs.gz' ))
         return getOutDir("pairs_library") +"/${library}.nodups.pairs.gz"
 
