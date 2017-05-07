@@ -427,7 +427,7 @@ process filter_make_pairs {
     set library, "${library}.dedup.stats" into LIB_DEDUP_STATS
  
     """
-    pairsamtools select '(PAIR_TYPE == "CX") or (PAIR_TYPE == "LL")' \
+    pairsamtools select '(pair_type == "CX") or (pair_type == "LL")' \
         ${pairsam_lib} \
         --output-rest >( pairsamtools split \
             --output-pairs ${library}.unmapped.pairs.gz \
