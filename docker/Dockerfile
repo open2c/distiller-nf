@@ -3,7 +3,8 @@ FROM ubuntu:16.04
 MAINTAINER mirnylib
 
 RUN apt-get update --fix-missing && \
-  apt-get install -q -y wget curl bzip2 git build-essential zlib1g-dev locales vim
+  apt-get install -q -y wget curl bzip2 libbz2-dev git build-essential zlib1g-dev locales vim
+
 
 # Set the locale
 RUN locale-gen en_US.UTF-8  
