@@ -53,7 +53,7 @@ input:
     genome:
         assembly: 'sacCer3'
         bwa_index_wildcard: 'test/genome/sacCer3.fa.gz.*'
-        chrom_sizes_path: 'test/genome/sacCer3.chrom.sizes'
+        chrom_sizes_path: 'test/genome/sacCer3.reduced.chrom.sizes'
 
 map:
     chunksize: 6000

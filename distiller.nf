@@ -262,6 +262,7 @@ LIB_RUN_CHUNK_BAMS
      .groupTuple(by: [0, 1])
      .set {LIB_RUN_BAMS}
 
+CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
 process parse_runs {
     tag "library:${library} run:${run}"
@@ -272,6 +273,7 @@ process parse_runs {
  
     input:
     set val(library), val(run), file(bam) from LIB_RUN_BAMS
+    file(chrom_sizes) from CHROM_SIZES.first()
      
     output:
     set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
@@ -290,11 +292,12 @@ process parse_runs {
     if( isSingleFile(bam))
         """
         mkdir ./tmp4sort
-        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} ${bam} \
-            | pairsamtools sort --nproc ${task.cpus} \
-                                -o ${library}.${run}.pairsam.gz \
-                                --tmpdir ./tmp4sort \
-            | cat
+        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+            -c ${chrom_sizes}  ${bam} \
+                | pairsamtools sort --nproc ${task.cpus} \
+                                    -o ${library}.${run}.pairsam.gz \
+                                    --tmpdir ./tmp4sort \
+                | cat
 
         rm -rf ./tmp4sort
 
@@ -305,7 +308,7 @@ process parse_runs {
         mkdir ./tmp4sort
         mkdir ./tmp_pairsam
         parallel -P${n_parse_processes} 'pairsamtools parse \
-            ${dropsam_flag} ${dropseq_flag} ${dropreadid_flag} {} \
+            ${dropsam_flag} ${dropseq_flag} ${dropreadid_flag} -c ${chrom_sizes} {} \
             | pairsamtools sort --nproc 4 \
                                 -o ./tmp_pairsam/{}.pairsam.gz \
                                 --tmpdir ./tmp4sort ' ::: ${bam}
