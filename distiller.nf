@@ -425,32 +425,62 @@ process filter_make_pairs {
                  "${library}.unmapped.pairs.gz", 
                  "${library}.unmapped.bam" into LIB_PAIRS_BAMS
     set library, "${library}.dedup.stats" into LIB_DEDUP_STATS
- 
-    """
-    pairsamtools select '(pair_type == "CX") or (pair_type == "LL")' \
-        ${pairsam_lib} \
-        --output-rest >( pairsamtools split \
-            --output-pairs ${library}.unmapped.pairs.gz \
-            --output-sam ${library}.unmapped.bam \
-            ) | \
-        pairsamtools dedup \
-            --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
-            --output \
-                >( pairsamtools split \
-                    --output-pairs ${library}.nodups.pairs.gz \
-                    --output-sam ${library}.nodups.bam \
-                 ) \
-            --output-dups \
-                >( pairsamtools markasdup \
-                    | pairsamtools split \
-                        --output-pairs ${library}.dups.pairs.gz \
-                        --output-sam ${library}.dups.bam \
-                 ) \
-            --stats-file ${library}.dedup.stats \
-            | cat
+    
+    script:
+    dropsam = params['map'].get('drop_sam','false').toBoolean()
+    if(dropsam) 
+        """
+        pairsamtools select '(pair_type == "CX") or (pair_type == "LL")' \
+            ${pairsam_lib} \
+            --output-rest >( pairsamtools split \
+                --output-pairs ${library}.unmapped.pairs.gz \
+                ) | \
+            pairsamtools dedup \
+                --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
+                --output \
+                    >( pairsamtools split \
+                        --output-pairs ${library}.nodups.pairs.gz \
+                     ) \
+                --output-dups \
+                    >( pairsamtools markasdup \
+                        | pairsamtools split \
+                            --output-pairs ${library}.dups.pairs.gz \
+                     ) \
+                --stats-file ${library}.dedup.stats \
+                | cat
+
+        touch ${library}.unmapped.bam
+        touch ${library}.nodups.bam
+        touch ${library}.dups.bam
+
+        """
+    else 
+        """
+        pairsamtools select '(pair_type == "CX") or (pair_type == "LL")' \
+            ${pairsam_lib} \
+            --output-rest >( pairsamtools split \
+                --output-pairs ${library}.unmapped.pairs.gz \
+                --output-sam ${library}.unmapped.bam \
+                ) | \
+            pairsamtools dedup \
+                --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
+                --output \
+                    >( pairsamtools split \
+                        --output-pairs ${library}.nodups.pairs.gz \
+                        --output-sam ${library}.nodups.bam \
+                     ) \
+                --output-dups \
+                    >( pairsamtools markasdup \
+                        | pairsamtools split \
+                            --output-pairs ${library}.dups.pairs.gz \
+                            --output-sam ${library}.dups.bam \
+                     ) \
+                --stats-file ${library}.dedup.stats \
+                | cat
 
 
-    """
+        """
+    
 }
 
 
