@@ -216,7 +216,7 @@ CHUNKS_SIDE_1
 LIB_RUN_CHUNK_FASTQ
     .mix(
         LIB_RUN_FASTQS_NO_CHUNK
-            .map { [it[0], it[1], 0, it[2]] } )
+            .map { [it[0], it[1], 0, it[2], it[3]] } )
     .set{LIB_RUN_CHUNK_FASTQ}
 
 BWA_INDEX = Channel.from([[
@@ -562,9 +562,15 @@ process make_library_group_coolers{
     output:
         set library_group, res, "${library_group}.${res}.cool" into LIBGROUP_RES_COOLERS
 
-    """
-    cooler merge ${library_group}.${res}.cool ${coolers}
-    """
+    script:
+    if( isSingleFile(coolers))
+        """
+        ln -s \$(readlink -f ${coolers}) ${library_group}.${res}.cool
+        """
+    else
+        """
+        cooler merge ${library_group}.${res}.cool ${coolers}
+        """
 }
 
 
