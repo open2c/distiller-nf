@@ -131,7 +131,7 @@ process fastqc{
 
     """
     mkdir -p ./temp_fastqc/
-    ln -s \$(readlink -f ${fastq}) ./temp_fastqc/${library}.${run}.${side}.fastq.gz
+    ln -s \"\$(readlink -f ${fastq})\" ./temp_fastqc/${library}.${run}.${side}.fastq.gz
     fastqc --threads ${task.cpus} -o ./ -f fastq ./temp_fastqc/${library}.${run}.${side}.fastq.gz
     rm -r ./temp_fastqc/
     """
@@ -345,7 +345,7 @@ process merge_runs_into_libraries {
     script:
     if( isSingleFile(run_pairsam))
         """
-        ln -s \$(readlink -f ${run_pairsam}) ${library}.pairsam.gz
+        ln -s \"\$(readlink -f ${run_pairsam})\" ${library}.pairsam.gz
         """
     else
         """
