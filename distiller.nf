@@ -310,7 +310,7 @@ process parse_runs {
                                 -o ./tmp_pairsam/{}.pairsam.gz \
                                 --tmpdir ./tmp4sort ' ::: ${bam}
 
-        pairsamtools merge ./tmp_pairsam/* --nproc ${task.cpus} -o ${library}.${run}.pairsam.gz
+        pairsamtools merge ./tmp_pairsam/* --npzipout ${task.cpus} -o ${library}.${run}.pairsam.gz
     
         rm -rf ./tmp4sort
         rm -rf ./tmp_pairsam
@@ -349,7 +349,7 @@ process merge_runs_into_libraries {
         """
     else
         """
-        pairsamtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.gz
+        pairsamtools merge ${run_pairsam} --npzipout ${task.cpus} -o ${library}.pairsam.gz
         """
 }
 
