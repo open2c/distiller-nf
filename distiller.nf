@@ -359,7 +359,7 @@ LIB_RUN_PAIRSAMS_POST_PREMERGE.mix(LIB_RUN_PAIRSAMS_MERGE_RUN).set{LIB_RUN_PAIRS
 /*
  * groupby library and run: techincally k3 is no longer needed (consider omitting)
  */
-LIB_RUN_PAIRSAMS_MERGE_RUN.
+LIB_RUN_PAIRSAMS_MERGE_RUN
      .groupTuple(by: [0, 1])
      .map {k1,k2,k3,v->[k1,k2,k3.sum(),v]}
      .set{LIB_RUN_PAIRSAMS_MERGE_RUN}
