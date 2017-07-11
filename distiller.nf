@@ -241,7 +241,7 @@ process map_runs {
     set val(bwa_index_base), file(bwa_index_files) from BWA_INDEX.first()
      
     output:
-    set library, run, "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_BAMS
+    set library, run, chunk, "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_BAMS
  
     """
     bwa mem -t ${task.cpus} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
@@ -255,67 +255,37 @@ process map_runs {
  * Parse mapped bams
  */
 
-LIB_RUN_CHUNK_BAMS
-     .groupTuple(by: [0, 1])
-     .set {LIB_RUN_BAMS}
-
 CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
 process parse_runs {
-    tag "library:${library} run:${run}"
-    storeDir getIntermediateDir('pairsam_run')
-    publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
+    tag "library:${library} run:${run} chunk:${chunk} parsing"
+    storeDir getIntermediateDir('pairsam_chunk')
 
     cpus params.parse_cpus
  
     input:
-    set val(library), val(run), file(bam) from LIB_RUN_BAMS
+    set val(library), val(run), val(chunk), file(bam) from LIB_RUN_CHUNK_BAMS
     file(chrom_sizes) from CHROM_SIZES.first()
      
     output:
-    set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
-    set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
+    set library, run, chunk, "${library}.${run}.${chunk}.pairsam.gz" into LIB_RUN_PAIRSAM_CHUNKS
  
     script:
     dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
     dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
     dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
-    stats_command = (params.get('do_stats', 'true').toBoolean() ?
-        "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
-        "touch ${library}.${run}.stats" )
-    n_parse_processes = (int)Math.ceil(task.cpus / 2)
-    n_parse_processes = n_parse_processes < 1 ? 1 : n_parse_processes
 
-    if( isSingleFile(bam))
         """
         mkdir ./tmp4sort
         pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
             -c ${chrom_sizes}  ${bam} \
                 | pairsamtools sort --nproc ${task.cpus} \
-                                    -o ${library}.${run}.pairsam.gz \
+                                    -o ${library}.${run}.${chunk}.pairsam.gz \
                                     --tmpdir ./tmp4sort \
                 | cat
 
         rm -rf ./tmp4sort
 
-        ${stats_command}
-        """
-    else 
-        """
-        mkdir ./tmp4sort
-        mkdir ./tmp_pairsam
-        parallel -P${n_parse_processes} 'pairsamtools parse \
-            ${dropsam_flag} ${dropseq_flag} ${dropreadid_flag} -c ${chrom_sizes} {} \
-            | pairsamtools sort --nproc 4 \
-                                -o ./tmp_pairsam/{}.pairsam.gz \
-                                --tmpdir ./tmp4sort ' ::: ${bam}
-
-        pairsamtools merge ./tmp_pairsam/* --nproc ${task.cpus} -o ${library}.${run}.pairsam.gz
-    
-        rm -rf ./tmp4sort
-        rm -rf ./tmp_pairsam
-
-        ${stats_command}
         """
 }
 
