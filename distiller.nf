@@ -268,7 +268,7 @@ process parse_runs {
     file(chrom_sizes) from CHROM_SIZES.first()
      
     output:
-    set library, run, chunk, "${library}.${run}.${chunk}.pairsam.gz" into LIB_RUN_PAIRSAM_CHUNKS
+    set library, run, chunk, "${library}.${run}.${chunk}.pairsam.gz" into LIB_RUN_PAIRSAM_CHUNKS, LIB_RUN_PAIRSAM_CHUNKS_TO_COUNT
  
     script:
     dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
@@ -290,9 +290,120 @@ process parse_runs {
 }
 
 
+/*
+ * Channels for pre-merging or merging into runs 
+ */
+LIB_RUN_PAIRSAMS_PREMERGE = Channel.create()
+LIB_RUN_PAIRSAMS_MERGE_RUN = Channel.create()
+
 
 /*
- * Merge .pairsams for runs into libraries
+ * Adding total number of chunks to the chunks-channel
+ * and reidrecting it either to pre-merging step or straight to merge-run.
+ * Everything is explicitly synchronized !
+ */
+LIB_RUN_PAIRSAM_CHUNKS_TO_COUNT
+                    .count()
+                    .combine(LIB_RUN_PAIRSAM_CHUNKS)
+                    .choice(LIB_RUN_PAIRSAMS_PREMERGE
+                        ,LIB_RUN_PAIRSAMS_MERGE_RUN){
+                             it[0] > params.merge.merge_threshold) ? 0 : 1
+                           }
+
+/*
+ * Get rid of that total number of chunks in pre-merge and merge-run Channels 
+ */
+LIB_RUN_PAIRSAMS_PREMERGE.map { it[1..-1] }.set{LIB_RUN_PAIRSAMS_PREMERGE}
+LIB_RUN_PAIRSAMS_MERGE_RUN.map { it[1..-1] }.set{LIB_RUN_PAIRSAMS_MERGE_RUN}
+
+/*
+ * Group pairsam chunks in batches for premerge.
+ * k3.sum() - combines chunk id-s of each pairsam in the batch
+ * batch content is stochastic, thus resuming from after pre-merge step could be a problem!
+ */
+LIB_RUN_PAIRSAMS_PREMERGE
+     .groupTuple(by: [0, 1], size: params.merge.merge_batch_size, remainder: true)
+     .map {k1,k2,k3,v->[k1, k2, k3.sum(), v]}
+     .set{LIB_RUN_PAIRSAMS_PREMERGE}
+
+/*
+ * Pre-merge .pairsams chunks in batches of merge_batch_size
+ * This step is usefull for HPC and big number of chunks
+ */
+process premerge_pairsam_chunks {
+    tag "library:${library} run:${run} batch:${batch} premerging"
+    storeDir getIntermediateDir('pairsam_chunk_premerge')
+
+    cpus params.merge_cpus
+ 
+    input:
+    set val(library), val(run), val(batch), 'pairsam_chunk*.pairsam.gz' from LIB_RUN_PAIRSAMS_PREMERGE
+
+    output:
+    set library, run, batch, "${library}.${run}.${batch}.pairsam.gz" into LIB_RUN_PAIRSAMS_POST_PREMERGE
+
+    script:
+        """
+        pairsamtools merge pairsam_chunk*.pairsam.gz --nproc ${task.cpus} -o ${library}.${run}.${batch}.pairsam.gz
+        """
+}
+
+
+/*
+ * Mix (merge) channels with .pairsam chunks
+ * one of these channels should be empty: chunks were either pre-merged or remain unchanged
+ * now they are to be piped in the channel for merging into runs.
+ */
+LIB_RUN_PAIRSAMS_POST_PREMERGE.mix(LIB_RUN_PAIRSAMS_MERGE_RUN).set{LIB_RUN_PAIRSAMS_MERGE_RUN}
+
+/*
+ * groupby library and run: techincally k3 is no longer needed (consider omitting)
+ */
+LIB_RUN_PAIRSAMS_MERGE_RUN.
+     .groupTuple(by: [0, 1])
+     .map {k1,k2,k3,v->[k1,k2,k3.sum(),v]}
+     .set{LIB_RUN_PAIRSAMS_MERGE_RUN}
+
+
+
+/*
+ * Merge premerged or not-premerged chunks of .pairsam into runs
+ */
+process merge_pairsam_into_runs {
+    tag "library:${library} run:${run}"
+    storeDir getIntermediateDir('pairsam_run')
+    publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
+
+    cpus params.merge_cpus
+ 
+    input:
+    set val(library), val(run), val(batch), 'pairsam_chunk*.pairsam.gz' from LIB_RUN_PAIRSAMS_MERGE_RUN
+     
+    output:
+    set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
+    set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
+ 
+    script:
+    stats_command = (params.get('do_stats', 'true').toBoolean() ?
+        "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
+        "touch ${library}.${run}.stats" )
+
+        """
+        pairsamtools merge pairsam_chunk*.pairsam.gz --nproc ${task.cpus} -o ${library}.${run}.pairsam.gz
+
+        ${stats_command}
+        """
+
+}
+
+
+
+
+
+
+
+/*
+ * Grouby .pairsam by library and merge
  */
 
 LIB_RUN_PAIRSAMS
