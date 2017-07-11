@@ -307,7 +307,7 @@ LIB_RUN_PAIRSAM_CHUNKS_TO_COUNT
                     .combine(LIB_RUN_PAIRSAM_CHUNKS)
                     .choice(LIB_RUN_PAIRSAMS_PREMERGE
                         ,LIB_RUN_PAIRSAMS_MERGE_RUN){
-                             it[0] > params.merge.merge_threshold) ? 0 : 1
+                             (it[0] > params.merge.merge_threshold) ? 0 : 1
                            }
 
 /*
