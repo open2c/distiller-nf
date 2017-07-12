@@ -1,6 +1,6 @@
 set -ex
 
-USERNAME=mirnylab
+USERNAME=dekkerlab
 IMAGE=distiller_env
 
 # ensure we're up to date
