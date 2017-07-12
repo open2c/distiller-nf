@@ -436,6 +436,7 @@ process filter_make_pairs {
                 --output-pairs ${library}.unmapped.pairs.gz \
                 ) | \
             pairsamtools dedup \
+                --lite \
                 --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
                 --output \
                     >( pairsamtools split \
@@ -463,6 +464,7 @@ process filter_make_pairs {
                 --output-sam ${library}.unmapped.bam \
                 ) | \
             pairsamtools dedup \
+                --lite \
                 --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
                 --output \
                     >( pairsamtools split \
