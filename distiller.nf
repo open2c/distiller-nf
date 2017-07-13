@@ -337,14 +337,19 @@ process premerge_pairsam_chunks {
     cpus params.merge_cpus
  
     input:
-    set val(library), val(run), val(batch), 'pairsam_chunk*.pairsam.gz' from LIB_RUN_PAIRSAMS_PREMERGE
+    set val(library), val(run), val(batch), file(run_chunk_pairsam) from LIB_RUN_PAIRSAMS_PREMERGE
 
     output:
-    set library, run, batch, "${library}.${run}.${batch}.pairsam.gz" into LIB_RUN_PAIRSAMS_POST_PREMERGE
+    set library, run, batch, "${library}.${run}.${batch}.premerged.pairsam.gz" into LIB_RUN_PAIRSAMS_POST_PREMERGE
 
     script:
+    if( isSingleFile(run_chunk_pairsam))
         """
-        pairsamtools merge pairsam_chunk*.pairsam.gz --nproc ${task.cpus} -o ${library}.${run}.${batch}.pairsam.gz
+        ln -s \"\$(readlink -f ${run_chunk_pairsam})\" ${library}.${run}.${batch}.premerged.pairsam.gz
+        """
+    else
+        """
+        pairsamtools merge ${run_chunk_pairsam} --nproc ${task.cpus} -o ${library}.${run}.${batch}.premerged.pairsam.gz
         """
 }
 
@@ -377,7 +382,7 @@ process merge_pairsam_into_runs {
     cpus params.merge_cpus
  
     input:
-    set val(library), val(run), val(batch), 'pairsam_chunk*.pairsam.gz' from LIB_RUN_PAIRSAMS_MERGE_RUN
+    set val(library), val(run), val(batch), file(run_batch_pairsam) from LIB_RUN_PAIRSAMS_MERGE_RUN
      
     output:
     set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
@@ -387,9 +392,16 @@ process merge_pairsam_into_runs {
     stats_command = (params.get('do_stats', 'true').toBoolean() ?
         "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
         "touch ${library}.${run}.stats" )
-
+    
+    if( isSingleFile(run_batch_pairsam))
         """
-        pairsamtools merge pairsam_chunk*.pairsam.gz --nproc ${task.cpus} -o ${library}.${run}.pairsam.gz
+        ln -s \"\$(readlink -f ${run_batch_pairsam})\" ${library}.${run}.pairsam.gz
+
+        ${stats_command}
+        """
+    else
+        """
+        pairsamtools merge ${run_batch_pairsam} --nproc ${task.cpus} -o ${library}.${run}.pairsam.gz
 
         ${stats_command}
         """
