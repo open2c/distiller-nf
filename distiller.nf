@@ -401,13 +401,13 @@ process filter_make_pairs {
       if( it.endsWith('.dups.pairs.gz' ))
         return getOutDir("pairs_library") +"/${library}.dups.pairs.gz"
 
-      if( it.endsWith('.nodups.bam' ))
+      if( it.endsWith('.dups.bam' ))
         return getOutDir("bams_library") +"/${library}.dups.bam"
 
       if( it.endsWith('.unmapped.pairs.gz' ))
         return getOutDir("pairs_library") +"/${library}.unmapped.pairs.gz"
 
-      if( it.endsWith('.nodups.bam' ))
+      if( it.endsWith('.unmapped.bam' ))
         return getOutDir("bams_library") +"/${library}.unmapped.bam"
 
       if( it.endsWith('.dedup.stats' ))
