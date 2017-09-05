@@ -241,7 +241,7 @@ process map_runs {
     set val(bwa_index_base), file(bwa_index_files) from BWA_INDEX.first()
      
     output:
-    set library, run, "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_BAMS
+    set library, run, chunk, "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_BAMS
  
     """
     bwa mem -t ${task.cpus} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
@@ -255,74 +255,167 @@ process map_runs {
  * Parse mapped bams
  */
 
-LIB_RUN_CHUNK_BAMS
-     .groupTuple(by: [0, 1])
-     .set {LIB_RUN_BAMS}
-
 CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
 process parse_runs {
-    tag "library:${library} run:${run}"
-    storeDir getIntermediateDir('pairsam_run')
-    publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
+    tag "library:${library} run:${run} chunk:${chunk} parsing"
+    storeDir getIntermediateDir('pairsam_chunk')
 
     cpus params.parse_cpus
  
     input:
-    set val(library), val(run), file(bam) from LIB_RUN_BAMS
+    set val(library), val(run), val(chunk), file(bam) from LIB_RUN_CHUNK_BAMS
     file(chrom_sizes) from CHROM_SIZES.first()
+     
+    output:
+    set library, run, chunk, "${library}.${run}.${chunk}.pairsam.gz" into LIB_RUN_PAIRSAM_CHUNKS, LIB_RUN_PAIRSAM_CHUNKS_TO_COUNT
+ 
+    script:
+    dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
+    dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
+    dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
+
+        """
+        mkdir ./tmp4sort
+        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+            -c ${chrom_sizes}  ${bam} \
+                | pairsamtools sort --nproc ${task.cpus} \
+                                    -o ${library}.${run}.${chunk}.pairsam.gz \
+                                    --tmpdir ./tmp4sort \
+                | cat
+
+        rm -rf ./tmp4sort
+
+        """
+}
+
+
+/*
+ * Channels for pre-merging or merging into runs 
+ */
+LIB_RUN_PAIRSAMS_PREMERGE = Channel.create()
+LIB_RUN_PAIRSAMS_MERGE_RUN = Channel.create()
+
+
+/*
+ * Adding total number of chunks to the chunks-channel
+ * and reidrecting it either to pre-merging step or straight to merge-run.
+ * Everything is explicitly synchronized !
+ */
+LIB_RUN_PAIRSAM_CHUNKS_TO_COUNT
+                    .count()
+                    .combine(LIB_RUN_PAIRSAM_CHUNKS)
+                    .choice(LIB_RUN_PAIRSAMS_PREMERGE
+                        ,LIB_RUN_PAIRSAMS_MERGE_RUN){
+                             (it[0] > params.merge.merge_threshold) ? 0 : 1
+                           }
+
+/*
+ * Get rid of that total number of chunks in pre-merge and merge-run Channels 
+ */
+LIB_RUN_PAIRSAMS_PREMERGE.map { it[1..-1] }.set{LIB_RUN_PAIRSAMS_PREMERGE}
+LIB_RUN_PAIRSAMS_MERGE_RUN.map { it[1..-1] }.set{LIB_RUN_PAIRSAMS_MERGE_RUN}
+
+/*
+ * Group pairsam chunks in batches for premerge.
+ * k3.sum() - combines chunk id-s of each pairsam in the batch
+ * batch content is stochastic, thus resuming from after pre-merge step could be a problem!
+ */
+LIB_RUN_PAIRSAMS_PREMERGE
+     .groupTuple(by: [0, 1], size: params.merge.merge_batch_size, remainder: true)
+     .map {k1,k2,k3,v->[k1, k2, k3.sum(), v]}
+     .set{LIB_RUN_PAIRSAMS_PREMERGE}
+
+/*
+ * Pre-merge .pairsams chunks in batches of merge_batch_size
+ * This step is usefull for HPC and big number of chunks
+ */
+process premerge_pairsam_chunks {
+    tag "library:${library} run:${run} batch:${batch} premerging"
+    storeDir getIntermediateDir('pairsam_chunk_premerge')
+
+    cpus params.merge_cpus
+ 
+    input:
+    set val(library), val(run), val(batch), file(run_chunk_pairsam) from LIB_RUN_PAIRSAMS_PREMERGE
+
+    output:
+    set library, run, batch, "${library}.${run}.${batch}.premerged.pairsam.gz" into LIB_RUN_PAIRSAMS_POST_PREMERGE
+
+    script:
+    if( isSingleFile(run_chunk_pairsam))
+        """
+        ln -s \"\$(readlink -f ${run_chunk_pairsam})\" ${library}.${run}.${batch}.premerged.pairsam.gz
+        """
+    else
+        """
+        pairsamtools merge ${run_chunk_pairsam} --nproc ${task.cpus} -o ${library}.${run}.${batch}.premerged.pairsam.gz
+        """
+}
+
+
+/*
+ * Mix (merge) channels with .pairsam chunks
+ * one of these channels should be empty: chunks were either pre-merged or remain unchanged
+ * now they are to be piped in the channel for merging into runs.
+ */
+LIB_RUN_PAIRSAMS_POST_PREMERGE.mix(LIB_RUN_PAIRSAMS_MERGE_RUN).set{LIB_RUN_PAIRSAMS_MERGE_RUN}
+
+/*
+ * groupby library and run: techincally k3 is no longer needed (consider omitting)
+ */
+LIB_RUN_PAIRSAMS_MERGE_RUN
+     .groupTuple(by: [0, 1])
+     .map {k1,k2,k3,v->[k1,k2,k3.sum(),v]}
+     .set{LIB_RUN_PAIRSAMS_MERGE_RUN}
+
+
+
+/*
+ * Merge premerged or not-premerged chunks of .pairsam into runs
+ */
+process merge_pairsam_into_runs {
+    tag "library:${library} run:${run}"
+    storeDir getIntermediateDir('pairsam_run')
+    publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
+
+    cpus params.merge_cpus
+ 
+    input:
+    set val(library), val(run), val(batch), file(run_batch_pairsam) from LIB_RUN_PAIRSAMS_MERGE_RUN
      
     output:
     set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
     set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
  
     script:
-    dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
-    dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
-    dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
     stats_command = (params.get('do_stats', 'true').toBoolean() ?
         "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
         "touch ${library}.${run}.stats" )
-    n_parse_processes = (int)Math.ceil(task.cpus / 2)
-    n_parse_processes = n_parse_processes < 1 ? 1 : n_parse_processes
-
-    if( isSingleFile(bam))
-        """
-        mkdir ./tmp4sort
-        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-            -c ${chrom_sizes}  ${bam} \
-                | pairsamtools sort --nproc ${task.cpus} \
-                                    -o ${library}.${run}.pairsam.gz \
-                                    --tmpdir ./tmp4sort \
-                | cat
-
-        rm -rf ./tmp4sort
-
-        ${stats_command}
-        """
-    else 
-        """
-        mkdir ./tmp4sort
-        mkdir ./tmp_pairsam
-        parallel -P${n_parse_processes} 'pairsamtools parse \
-            ${dropsam_flag} ${dropseq_flag} ${dropreadid_flag} -c ${chrom_sizes} {} \
-            | pairsamtools sort --nproc 4 \
-                                -o ./tmp_pairsam/{}.pairsam.gz \
-                                --tmpdir ./tmp4sort ' ::: ${bam}
-
-        pairsamtools merge ./tmp_pairsam/* --nproc ${task.cpus} -o ${library}.${run}.pairsam.gz
     
-        rm -rf ./tmp4sort
-        rm -rf ./tmp_pairsam
+    if( isSingleFile(run_batch_pairsam))
+        """
+        ln -s \"\$(readlink -f ${run_batch_pairsam})\" ${library}.${run}.pairsam.gz
 
         ${stats_command}
         """
+    else
+        """
+        pairsamtools merge ${run_batch_pairsam} --nproc ${task.cpus} -o ${library}.${run}.pairsam.gz
+
+        ${stats_command}
+        """
+
 }
 
 
 
+
+
+
+
 /*
- * Merge .pairsams for runs into libraries
+ * Grouby .pairsam by library and merge
  */
 
 LIB_RUN_PAIRSAMS
