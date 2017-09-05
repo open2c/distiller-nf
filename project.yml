@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-do_fastqc: True
-#do_stats: True
-=======
 do_fastqc: False
 do_stats: True
->>>>>>> 2da761b... cluster config draft complete
     
 
 # Fastqs can be provided as:
