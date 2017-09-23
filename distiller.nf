@@ -156,7 +156,6 @@ process chunk_fastqs {
     tag "library:${library} run:${run}"
     storeDir getIntermediateDir('fastq_chunks')
 
-    cpus params.chunk_cpus
 
     input:
     set val(library), val(run),file(fastq1), file(fastq2) from LIB_RUN_FASTQS_FOR_CHUNK
@@ -234,7 +233,6 @@ process map_runs {
     tag "library:${library} run:${run} chunk:${chunk}"
     storeDir getIntermediateDir('bam_run')
 
-    cpus params.map_cpus
  
     input:
     set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQ
@@ -266,8 +264,6 @@ process parse_runs {
     storeDir getIntermediateDir('pairsam_run')
     publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
 
-    cpus params.parse_cpus
- 
     input:
     set val(library), val(run), file(bam) from LIB_RUN_BAMS
     file(chrom_sizes) from CHROM_SIZES.first()
@@ -334,7 +330,6 @@ process merge_runs_into_libraries {
     tag "library:${library}"
     storeDir getIntermediateDir('pairsam_library')
 
-    cpus params.merge_cpus
  
     input:
     set val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_MERGE
@@ -414,7 +409,6 @@ process filter_make_pairs {
         return getOutDir("stats_library") +"/${library}.dedup.stats.tsv"
     }
 
-    cpus params.filter_make_pairs_cpus
  
     input:
     set val(library), file(pairsam_lib) from LIB_PAIRSAMS
@@ -519,7 +513,6 @@ process bin_library_pairs{
     tag "library:${library} resolution:${res}"
     publishDir path: getOutDir('coolers_library'), mode:"copy", saveAs: {"${library}.${res}.cool"}
 
-    cpus params.bin_cpus
 
     input:
         set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
