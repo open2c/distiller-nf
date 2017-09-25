@@ -288,6 +288,43 @@ process parse_runs {
 
 
 
+/*
+ * Merge .pairsams for chunks into runs
+ */
+LIB_RUN_CHUNK_PAIRSAMS
+     .groupTuple(by: [0, 1])
+     .set {LIB_RUN_GROUP_PAIRSAMS}
+
+process merge_chunks_into_runs {
+    tag "library:${library} run:${run}"
+    storeDir getIntermediateDir('pairsam_run')
+    publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
+
+ 
+    input:
+    set val(library), val(run), file(pairsam_chunks) from LIB_RUN_GROUP_PAIRSAMS
+     
+    output:
+    set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
+    set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
+ 
+    script:
+    stats_command = (params.get('do_stats', 'true').toBoolean() ?
+        "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
+        "touch ${library}.${run}.stats" )
+    // can we replace this part with just the "else" branch, so that pairsamtools merge will take care of it?
+    if( isSingleFile(pairsam_chunks) )
+        """
+        ln -s \"\$(readlink -f ${pairsam_chunks})\" ${library}.${run}.pairsam.gz
+        ${stats_command}
+        """
+    else
+        """
+        pairsamtools merge ${pairsam_chunks} --nproc ${task.cpus} -o ${library}.${run}.pairsam.gz
+        ${stats_command}
+        """
+
+}
 
 /*
  * Merge .pairsams for runs into libraries
