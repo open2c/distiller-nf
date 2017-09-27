@@ -9,6 +9,18 @@ vim: syntax=groovy
  * Miscellaneous code for the pipeline
  */
 
+switch(params.compression_format) {
+    case 'gz':
+        suffix = 'gz'
+        break
+    case 'lz4':
+        suffix = 'lz4'
+        break
+    default:
+        suffix = 'gz'
+        break
+}
+
 boolean isSingleFile(object) {    
     object instanceof Path  
 }
@@ -265,7 +277,7 @@ process parse_runs {
     file(chrom_sizes) from CHROM_SIZES.first()
      
     output:
-    set library, run, "${library}.${run}.${chunk}.pairsam.gz" into LIB_RUN_CHUNK_PAIRSAMS
+    set library, run, "${library}.${run}.${chunk}.pairsam.${suffix}" into LIB_RUN_CHUNK_PAIRSAMS
  
     script:
     dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
@@ -277,7 +289,7 @@ process parse_runs {
     pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
         -c ${chrom_sizes}  ${bam} \
             | pairsamtools sort --nproc ${task.cpus} \
-                                -o ${library}.${run}.${chunk}.pairsam.gz \
+                                -o ${library}.${run}.${chunk}.pairsam.${suffix} \
                                 --tmpdir ./tmp4sort \
             | cat
 
@@ -305,22 +317,22 @@ process merge_chunks_into_runs {
     set val(library), val(run), file(pairsam_chunks) from LIB_RUN_GROUP_PAIRSAMS
      
     output:
-    set library, run, "${library}.${run}.pairsam.gz" into LIB_RUN_PAIRSAMS
+    set library, run, "${library}.${run}.pairsam.${suffix}" into LIB_RUN_PAIRSAMS
     set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
  
     script:
     stats_command = (params.get('do_stats', 'true').toBoolean() ?
-        "pairsamtools stats ${library}.${run}.pairsam.gz -o ${library}.${run}.stats" :
+        "pairsamtools stats ${library}.${run}.pairsam.${suffix} -o ${library}.${run}.stats" :
         "touch ${library}.${run}.stats" )
     // can we replace this part with just the "else" branch, so that pairsamtools merge will take care of it?
     if( isSingleFile(pairsam_chunks) )
         """
-        ln -s \"\$(readlink -f ${pairsam_chunks})\" ${library}.${run}.pairsam.gz
+        ln -s \"\$(readlink -f ${pairsam_chunks})\" ${library}.${run}.pairsam.${suffix}
         ${stats_command}
         """
     else
         """
-        pairsamtools merge ${pairsam_chunks} --nproc ${task.cpus} -o ${library}.${run}.pairsam.gz
+        pairsamtools merge ${pairsam_chunks} --nproc ${task.cpus} -o ${library}.${run}.pairsam.${suffix}
         ${stats_command}
         """
 
@@ -344,16 +356,16 @@ process merge_runs_into_libraries {
     set val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_MERGE
      
     output:
-    set library, "${library}.pairsam.gz" into LIB_PAIRSAMS
+    set library, "${library}.pairsam.${suffix}" into LIB_PAIRSAMS
 
     script:
     if( isSingleFile(run_pairsam))
         """
-        ln -s \"\$(readlink -f ${run_pairsam})\" ${library}.pairsam.gz
+        ln -s \"\$(readlink -f ${run_pairsam})\" ${library}.pairsam.${suffix}
         """
     else
         """
-        pairsamtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.gz
+        pairsamtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.${suffix}
         """
 }
 
