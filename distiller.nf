@@ -461,7 +461,7 @@ process filter_make_pairs {
                         | pairsamtools split \
                             --output-pairs ${library}.dups.pairs.gz \
                      ) \
-                --stats-file ${library}.dedup.stats \
+                --output-stats ${library}.dedup.stats \
                 | cat
 
         touch ${library}.unmapped.bam
@@ -490,7 +490,7 @@ process filter_make_pairs {
                             --output-pairs ${library}.dups.pairs.gz \
                             --output-sam ${library}.dups.bam \
                      ) \
-                --stats-file ${library}.dedup.stats \
+                --output-stats ${library}.dedup.stats \
                 | cat
 
 
