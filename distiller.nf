@@ -445,24 +445,24 @@ process filter_make_pairs {
     dropsam = params['map'].get('drop_sam','false').toBoolean()
     if(dropsam) 
         """
-        pairsamtools select '(pair_type == "CX") or (pair_type == "LL")' \
+        pairsamtools dedup \
+            --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
+            --mark-dups \
+            --output \
+                >( pairsamtools split \
+                    --output-pairs ${library}.nodups.pairs.gz \
+                 ) \
+            --output-unmapped \
+                >( pairsamtools split \
+                    --output-pairs ${library}.unmapped.pairs.gz \
+                 ) \
+            --output-dups \
+                >( pairsamtools split \
+                    --output-pairs ${library}.dups.pairs.gz \
+                 ) \
+            --output-stats ${library}.dedup.stats \
             ${pairsam_lib} \
-            --output-rest >( pairsamtools split \
-                --output-pairs ${library}.unmapped.pairs.gz \
-                ) | \
-            pairsamtools dedup \
-                --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
-                --output \
-                    >( pairsamtools split \
-                        --output-pairs ${library}.nodups.pairs.gz \
-                     ) \
-                --output-dups \
-                    >( pairsamtools markasdup \
-                        | pairsamtools split \
-                            --output-pairs ${library}.dups.pairs.gz \
-                     ) \
-                --output-stats ${library}.dedup.stats \
-                | cat
+            | cat
 
         touch ${library}.unmapped.bam
         touch ${library}.nodups.bam
@@ -471,28 +471,27 @@ process filter_make_pairs {
         """
     else 
         """
-        pairsamtools select '(pair_type == "CX") or (pair_type == "LL")' \
+        pairsamtools dedup \
+            --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
+            --mark-dups \
+            --output \
+                >( pairsamtools split \
+                    --output-pairs ${library}.nodups.pairs.gz \
+                    --output-sam ${library}.nodups.bam \
+                 ) \
+            --output-unmapped \
+                >( pairsamtools split \
+                    --output-pairs ${library}.unmapped.pairs.gz \
+                    --output-sam ${library}.unmapped.bam \
+                 ) \
+            --output-dups \
+                >( pairsamtools split \
+                    --output-pairs ${library}.dups.pairs.gz \
+                    --output-sam ${library}.dups.bam \
+                 ) \
+            --output-stats ${library}.dedup.stats \
             ${pairsam_lib} \
-            --output-rest >( pairsamtools split \
-                --output-pairs ${library}.unmapped.pairs.gz \
-                --output-sam ${library}.unmapped.bam \
-                ) | \
-            pairsamtools dedup \
-                --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
-                --output \
-                    >( pairsamtools split \
-                        --output-pairs ${library}.nodups.pairs.gz \
-                        --output-sam ${library}.nodups.bam \
-                     ) \
-                --output-dups \
-                    >( pairsamtools markasdup \
-                        | pairsamtools split \
-                            --output-pairs ${library}.dups.pairs.gz \
-                            --output-sam ${library}.dups.bam \
-                     ) \
-                --output-stats ${library}.dedup.stats \
-                | cat
-
+            | cat
 
         """
     
