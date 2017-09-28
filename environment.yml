@@ -8,6 +8,7 @@ dependencies:
     - python=3.6
     - parallel
     - pbgzip
+    - lz4-c
     - samtools>=1.4
     - sra-tools>=2.8.1
     - fastqc
@@ -21,5 +22,5 @@ dependencies:
     - pairix
     - pip:
         - cooler>=0.7.1
-        - git+git://github.com/mirnylab/pairsamtools
+        - git+https://github.com/mirnylab/pairsamtools
         - toolz
