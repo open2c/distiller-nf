@@ -448,18 +448,9 @@ process filter_make_pairs {
         pairsamtools dedup \
             --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
             --mark-dups \
-            --output \
-                >( pairsamtools split \
-                    --output-pairs ${library}.nodups.pairs.gz \
-                 ) \
-            --output-unmapped \
-                >( pairsamtools split \
-                    --output-pairs ${library}.unmapped.pairs.gz \
-                 ) \
-            --output-dups \
-                >( pairsamtools split \
-                    --output-pairs ${library}.dups.pairs.gz \
-                 ) \
+            --output ${library}.nodups.pairs.gz \
+            --output-unmapped ${library}.unmapped.pairs.gz \
+            --output-dups ${library}.dups.pairs.gz \
             --output-stats ${library}.dedup.stats \
             ${pairsam_lib} \
             | cat
