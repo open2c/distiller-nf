@@ -89,6 +89,7 @@ output:
     dirs:
         fastqc: 'fastqc/'
         pairs_library: 'pairs/library/'
+        stats_chunk: 'stats/chunk/'
         stats_run: 'stats/run/'
         stats_library: 'stats/library/'
         stats_library_group: 'stats/library_group/'
