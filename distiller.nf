@@ -271,6 +271,7 @@ CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 process parse_runs {
     tag "library:${library} run:${run} chunk:${chunk}"
     storeDir getIntermediateDir('pairsam_chunk')
+    publishDir path: getOutDir('stats_chunk'), pattern: "*.stats", mode:"copy"
 
     input:
     set val(library), val(run), val(chunk), file(bam) from LIB_RUN_CHUNK_BAMS
@@ -278,24 +279,43 @@ process parse_runs {
      
     output:
     set library, run, "${library}.${run}.${chunk}.pairsam.${suffix}" into LIB_RUN_CHUNK_PAIRSAMS
+    set library, run, "${library}.${run}.${chunk}.stats" into LIB_RUN_CHUNK_STATS
  
     script:
     dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
     dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
     dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
 
-    """
-    mkdir ./tmp4sort
-    pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-        -c ${chrom_sizes}  ${bam} \
-            | pairsamtools sort --nproc ${task.cpus} \
-                                -o ${library}.${run}.${chunk}.pairsam.${suffix} \
-                                --tmpdir ./tmp4sort \
-            | cat
+    if( params.get('do_stats', 'true').toBoolean() ) {
+        """
+        mkdir ./tmp4sort
+        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+            -c ${chrom_sizes} --output-stats ${library}.${run}.${chunk}.stats ${bam} \
+                | pairsamtools sort --nproc ${task.cpus} \
+                                    -o ${library}.${run}.${chunk}.pairsam.${suffix} \
+                                    --tmpdir ./tmp4sort \
+                | cat
 
-    rm -rf ./tmp4sort
+        rm -rf ./tmp4sort
 
-    """
+        """        
+    } else {
+        """
+        mkdir ./tmp4sort
+        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+            -c ${chrom_sizes} ${bam} \
+                | pairsamtools sort --nproc ${task.cpus} \
+                                    -o ${library}.${run}.${chunk}.pairsam.${suffix} \
+                                    --tmpdir ./tmp4sort \
+                | cat
+
+        touch ${library}.${run}.${chunk}.stats
+
+        rm -rf ./tmp4sort
+
+        """        
+    }
+
 }
 
 
@@ -310,30 +330,22 @@ LIB_RUN_CHUNK_PAIRSAMS
 process merge_chunks_into_runs {
     tag "library:${library} run:${run}"
     storeDir getIntermediateDir('pairsam_run')
-    publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
-
  
     input:
     set val(library), val(run), file(pairsam_chunks) from LIB_RUN_GROUP_PAIRSAMS
      
     output:
     set library, run, "${library}.${run}.pairsam.${suffix}" into LIB_RUN_PAIRSAMS
-    set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
  
     script:
-    stats_command = (params.get('do_stats', 'true').toBoolean() ?
-        "pairsamtools stats ${library}.${run}.pairsam.${suffix} -o ${library}.${run}.stats" :
-        "touch ${library}.${run}.stats" )
     // can we replace this part with just the "else" branch, so that pairsamtools merge will take care of it?
     if( isSingleFile(pairsam_chunks) )
         """
         ln -s \"\$(readlink -f ${pairsam_chunks})\" ${library}.${run}.pairsam.${suffix}
-        ${stats_command}
         """
     else
         """
         pairsamtools merge ${pairsam_chunks} --nproc ${task.cpus} -o ${library}.${run}.pairsam.${suffix}
-        ${stats_command}
         """
 
 }
@@ -366,6 +378,34 @@ process merge_runs_into_libraries {
     else
         """
         pairsamtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.${suffix}
+        """
+}
+
+/*
+ * Merge .stats for chunks into runs
+ */
+LIB_RUN_CHUNK_STATS
+    .groupTuple(by: [0, 1])
+    .set {RUN_STATS_TO_MERGE}
+
+process merge_stats_chunks_into_runs {
+    tag "library:${library} run:${run}"
+    publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
+
+    input:
+    set val(library), val(run), file(chunk_stats) from RUN_STATS_TO_MERGE
+     
+    output:
+    set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
+
+    script:
+    if( isSingleFile(chunk_stats))
+        """
+        ln -s ${chunk_stats} ${library}.${run}.stats
+        """
+    else
+        """
+        pairsamtools stats --merge ${chunk_stats} -o ${library}.${run}.stats
         """
 }
 
