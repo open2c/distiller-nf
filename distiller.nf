@@ -44,13 +44,18 @@ LIB_RUN_SOURCES = Channel.from(
  * Download fastqs from SRA.
  */
 
-LIB_RUN_FASTQS = Channel.create()
 LIB_RUN_SRAS = Channel.create()
-LIB_RUN_SOURCES.choice(LIB_RUN_SRAS, LIB_RUN_FASTQS) {
-    a -> a.size() == 3 ? 0 : 1
+LIB_RUN_LOCAL_FASTQS = Channel.create()
+LIB_RUN_REMOTE_FASTQS = Channel.create()
+LIB_RUN_SOURCES.choice(LIB_RUN_SRAS, LIB_RUN_REMOTE_FASTQS, LIB_RUN_LOCAL_FASTQS) {
+    a -> a.size() == 3 ? 0 : ( (a[2].startsWith('http://')
+                               || a[2].startsWith('https://') 
+                               || a[2].startsWith('ftp://') 
+                               || a[3].startsWith('http://')
+                               || a[3].startsWith('https://')
+                               || a[3].startsWith('ftp://') 
+                               ) ? 1 : 2)
     }
-
-
 
 process download_sra {
     tag "$query"
@@ -98,13 +103,49 @@ process download_sra {
     else {
         error "Runs can be defined with one line only with SRA"
     }
+}
+
+
+process download_fastq {
+    tag "library:${library} run:${run}"
+    storeDir getIntermediateDir('downloaded_fastqs')
+ 
+    input:
+    set val(library), val(run), val(fastq1_url), val(fastq2_url) from LIB_RUN_REMOTE_FASTQS
+     
+    output:
+    set library, run, 
+        "${library}.${run}.1.fastq.gz", 
+        "${library}.${run}.2.fastq.gz" into LIB_RUN_DOWNLOADED_FASTQS
+ 
+    script:
+    if (fastq1_url == null) error "No files provided for library ${library}, run ${run}, side 1"
+    if (fastq2_url == null) error "No files provided for library ${library}, run ${run}, side 2"
+
+    download_cmd1 = ((fastq1_url.startsWith('http://') 
+                     || fastq1_url.startsWith('https://') 
+                     || fastq1_url.startsWith('ftp://')) 
+                    ? "wget ${fastq1_url} -O ${library}.${run}.1.fastq.gz"
+                    : "ln -s ${fastq1_url} ${library}.${run}.1.fastq.gz"
+                    )
+    download_cmd2 = ((fastq2_url.startsWith('http://') 
+                     || fastq2_url.startsWith('https://') 
+                     || fastq2_url.startsWith('ftp://')) 
+                    ? "wget ${fastq2_url} -O ${library}.${run}.2.fastq.gz"
+                    : "ln -s ${fastq2_url} ${library}.${run}.2.fastq.gz"
+                    )
+    """
+    ${download_cmd1}
+    ${download_cmd2}
+    """
 
 }
 
-LIB_RUN_FASTQS
+LIB_RUN_LOCAL_FASTQS
     .mix(LIB_RUN_FASTQ_SRA)
+    .mix(LIB_RUN_DOWNLOADED_FASTQS)
     .map{ v -> [v[0], v[1], file(v[2]), file(v[3])] }
-    .set { LIB_RUN_FASTQS }
+    .set{ LIB_RUN_FASTQS }
 
 
 /*
