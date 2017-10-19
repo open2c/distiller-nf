@@ -73,6 +73,8 @@ bin:
         - 40000
         - 20000
         - 10000
+    balance: True
+    balance_options: ''
 
 intermediates:
     base_dir: 'test/intermediates/'

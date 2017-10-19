@@ -573,11 +573,21 @@ process bin_library_pairs{
     output:
         set library, res, "${library}.${res}.cool" into LIB_RES_COOLERS
 
+    script:
+
+    // get any additional balancing options, if provided
+    balance_options = params['bin'].get('balance_options','')
+    // balancing command if it's requested
+    balance_command = ( params['bin'].get('balance','false').toBoolean() ? 
+        "cooler balance --nproc ${task.cpus} ${balance_options} ${library}.${res}.cool" : "" )
+
     """
     cooler cload pairix \
         --nproc ${task.cpus} \
         --assembly ${params.input.genome.assembly} \
         ${chrom_sizes}:${res} ${pairs_lib} ${library}.${res}.cool
+
+    ${balance_command}
     """
 }
 
@@ -607,13 +617,24 @@ process make_library_group_coolers{
         set library_group, res, "${library_group}.${res}.cool" into LIBGROUP_RES_COOLERS
 
     script:
+
+    // get any additional balancing options, if provided
+    balance_options = params['bin'].get('balance_options','')
+    // balancing command if it's requested
+    balance_command = ( params['bin'].get('balance','false').toBoolean() ? 
+        "cooler balance --nproc ${task.cpus} ${balance_options} ${library_group}.${res}.cool" : "" )
+
     if( isSingleFile(coolers))
+        // .cool is already balanced in such case:
         """
         ln -s \$(readlink -f ${coolers}) ${library_group}.${res}.cool
         """
     else
+        // 'weight' column is gone after merging, so balance if requested:
         """
         cooler merge ${library_group}.${res}.cool ${coolers}
+
+        ${balance_command}
         """
 }
 
