@@ -619,9 +619,9 @@ process zoom_library_coolers{
 
     // additional balancing options as '--balance-args' or empty-line
     balance_options = params['bin'].get('balance_options','')
-    balance_options = ( balance_options ? "--balance-args ${balance_options}": "")
+    balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
-    balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance \"${balance_options}\"" : "--no-balance" )
+    balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
 
     """
     cooler zoomify \
