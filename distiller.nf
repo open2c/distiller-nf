@@ -571,7 +571,7 @@ process bin_library_pairs{
         file(chrom_sizes) from CHROM_SIZES.first()
 
     output:
-        set library, res, "${library}.${res}.cool" into LIB_RES_COOLERS
+        set library, res, "${library}.${res}.cool" into LIB_RES_COOLERS, LIB_RES_COOLERS_TO_ZOOM
 
     script:
 
@@ -590,6 +590,48 @@ process bin_library_pairs{
     ${balance_command}
     """
 }
+
+
+/*
+ * Zoomify .cool matrices with highest resolution for libraries (when requested).
+ */ 
+
+// use library-cooler file with the highest resolution (smallest bin size) to zoomify:
+LIB_RES_COOLERS_TO_ZOOM.min{ it[1] as Integer }.set{LIB_RES_COOLERS_TO_ZOOM}
+
+process zoom_library_coolers{
+    tag "library:${library} zoom"
+    publishDir path: getOutDir('zoom_coolers_library'), mode:"copy", saveAs: {"${library}.${res}.multires.cool"}
+
+
+    input:
+        set val(library), val(res), file(cool) from LIB_RES_COOLERS_TO_ZOOM
+
+    output:
+        set library, res, "${library}.${res}.multires.cool" into LIB_RES_COOLERS_ZOOMED
+
+    // run ot only if requested
+    when:
+    params['bin'].get('zoomify','false').toBoolean()
+
+
+    script:
+
+    // additional balancing options as '--balance-args' or empty-line
+    balance_options = params['bin'].get('balance_options','')
+    balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
+    // balancing flag if it's requested
+    balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+
+    """
+    cooler zoomify \
+        --nproc ${task.cpus} \
+        --out ${library}.${res}.multires.cool \
+        ${balance_flag} \
+        ${cool}
+    """
+}
+
 
 
 /*
@@ -614,7 +656,7 @@ process make_library_group_coolers{
         set val(library_group), val(res), file(coolers) from LIBGROUP_RES_COOLERS_TO_MERGE
 
     output:
-        set library_group, res, "${library_group}.${res}.cool" into LIBGROUP_RES_COOLERS
+        set library_group, res, "${library_group}.${res}.cool" into LIBGROUP_RES_COOLERS, LIBGROUP_RES_COOLERS_TO_ZOOM
 
     script:
 
@@ -637,6 +679,50 @@ process make_library_group_coolers{
         ${balance_command}
         """
 }
+
+
+
+/*
+ * Zoomify .cool matrices with highest resolution for library groups (when requested).
+ */ 
+
+// use library-group-cooler file with the highest resolution (smallest bin size) to zoomify:
+LIBGROUP_RES_COOLERS_TO_ZOOM.min{ it[1] as Integer }.set{LIBGROUP_RES_COOLERS_TO_ZOOM}
+
+process zoom_library_group_coolers{
+    tag "library_group:${library_group} zoom"
+    publishDir path: getOutDir('zoom_coolers_library_group'), mode:"copy", saveAs: {"${library_group}.${res}.multires.cool"}
+
+
+    input:
+        set val(library_group), val(res), file(cool) from LIBGROUP_RES_COOLERS_TO_ZOOM
+
+    output:
+        set library_group, res, "${library_group}.${res}.multires.cool" into LIBGROUP_RES_COOLERS_ZOOMED
+
+    // run ot only if requested
+    when:
+    params['bin'].get('zoomify','false').toBoolean()
+
+
+    script:
+
+    // additional balancing options as '--balance-args' or empty-line
+    balance_options = params['bin'].get('balance_options','')
+    balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
+    // balancing flag if it's requested
+    balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+
+    """
+    cooler zoomify \
+        --nproc ${task.cpus} \
+        --out ${library_group}.${res}.multires.cool \
+        ${balance_flag} \
+        ${cool}
+    """
+}
+
+
 
 
 /*

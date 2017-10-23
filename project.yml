@@ -75,6 +75,7 @@ bin:
         # - 10000
     balance: True
     balance_options: '--tol 0.05'
+    zoomify: True
 
 intermediates:
     base_dir: 'test/intermediates/'
@@ -97,5 +98,7 @@ output:
         stats_library_group: 'stats/library_group/'
         coolers_library: 'coolers/library/'
         coolers_library_group: 'coolers/library_group/'
+        zoom_coolers_library: 'coolers/library_zoom/'
+        zoom_coolers_library_group: 'coolers/library_group_zoom/'
         bams_library: 'bams/library/'
 
