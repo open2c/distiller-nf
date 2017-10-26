@@ -293,9 +293,13 @@ process map_runs {
      
     output:
     set library, run, chunk, "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_BAMS
+
+    script:
+    // additional mapping options or empty-line
+    mapping_options = params['map'].get('mapping_options','')
  
     """
-    bwa mem -t ${task.cpus} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
+    bwa mem -t ${task.cpus} ${mapping_options} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
         | samtools view -bS > ${library}.${run}.${chunk}.bam \
         | cat
     """

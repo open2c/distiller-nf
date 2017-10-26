@@ -60,6 +60,8 @@ map:
     drop_sam: False
     drop_readid: False
     drop_seq: False
+    # just an innocent BWA MEM option to test
+    mapping_options: '-v 3'
 
 filter:
     pcr_dups_max_mismatch_bp: 3
