@@ -638,7 +638,13 @@ process bin_library_pairs{
  */ 
 
 // use library-cooler file with the highest resolution (smallest bin size) to zoomify:
-LIB_RES_COOLERS_TO_ZOOM.min{ it[1] as Integer }.set{LIB_RES_COOLERS_TO_ZOOM}
+LIB_RES_COOLERS_TO_ZOOM
+    .map{ library,res,cool -> [library,[res,cool]] }
+    .groupTuple( by: 0, sort: {res,cool -> res} )
+    // after grouping by library get res_cool_list with smallest res (highest resoution)
+    .map{ library,res_cool_list -> [library,res_cool_list[0]].flatten() }
+    .set{LIB_RES_COOLERS_TO_ZOOM}
+
 
 process zoom_library_coolers{
     tag "library:${library} zoom"
@@ -728,7 +734,13 @@ process make_library_group_coolers{
  */ 
 
 // use library-group-cooler file with the highest resolution (smallest bin size) to zoomify:
-LIBGROUP_RES_COOLERS_TO_ZOOM.min{ it[1] as Integer }.set{LIBGROUP_RES_COOLERS_TO_ZOOM}
+LIBGROUP_RES_COOLERS_TO_ZOOM
+    .map{ library_group,res,cool -> [library_group,[res,cool]] }
+    .groupTuple( by: 0, sort: {res,cool -> res})
+    // after grouping by library_group get res_cool_list with smallest bin (highest resoution)
+    .map{ library_group,res_cool_list -> [library_group,res_cool_list[0]].flatten() }
+    .set{LIBGROUP_RES_COOLERS_TO_ZOOM}
+
 
 process zoom_library_group_coolers{
     tag "library_group:${library_group} zoom"
