@@ -12,7 +12,8 @@ dependencies:
     - samtools>=1.4
     - sra-tools>=2.8.1
     - fastqc
-    - bwa==0.7.15
+    - bwa
+    - seqtk
     - setuptools 
     - pip
     - cython 
