@@ -390,7 +390,9 @@ process merge_chunks_into_runs {
         """
     else
         """
-        pairsamtools merge ${pairsam_chunks} --nproc ${task.cpus} -o ${library}.${run}.pairsam.${suffix}
+        mkdir ./tmp4sort
+        pairsamtools merge ${pairsam_chunks} --nproc ${task.cpus} -o ${library}.${run}.pairsam.${suffix} --tmpdir ./tmp4sort
+        rm -rf ./tmp4sort
         """
 
 }
@@ -422,7 +424,9 @@ process merge_runs_into_libraries {
         """
     else
         """
-        pairsamtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.${suffix}
+        mkdir ./tmp4sort
+        pairsamtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.${suffix} --tmpdir ./tmp4sort
+        rm -rf ./tmp4sort
         """
 }
 
