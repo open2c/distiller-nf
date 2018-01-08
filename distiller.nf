@@ -259,9 +259,10 @@ CHUNKS_SIDE_2
                    it] }}
     .set{CHUNKS_SIDE_2}
 
+// phase operator retired:
+// https://github.com/nextflow-io/nextflow/issues/460
 CHUNKS_SIDE_1
-    .phase(CHUNKS_SIDE_2) { [it[0], it[1], it[2]] }
-    .map{ [it[0][0], it[0][1], it[0][2], it[0][3], it[1][3]] }
+    .join(CHUNKS_SIDE_2, by: [0,1,2])
     .set{ LIB_RUN_CHUNK_FASTQ }
 
 LIB_RUN_CHUNK_FASTQ
