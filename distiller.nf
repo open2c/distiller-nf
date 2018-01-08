@@ -316,7 +316,6 @@ CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 process parse_runs {
     tag "library:${library} run:${run} chunk:${chunk}"
     storeDir getIntermediateDir('pairsam_chunk')
-    publishDir path: getOutDir('stats_chunk'), pattern: "*.stats", mode:"copy"
 
     input:
     set val(library), val(run), val(chunk), file(bam) from LIB_RUN_CHUNK_BAMS
@@ -324,42 +323,25 @@ process parse_runs {
      
     output:
     set library, run, "${library}.${run}.${chunk}.pairsam.${suffix}" into LIB_RUN_CHUNK_PAIRSAMS
-    set library, run, "${library}.${run}.${chunk}.stats" into LIB_RUN_CHUNK_STATS
  
     script:
     dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
     dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
     dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
 
-    if( params.get('do_stats', 'true').toBoolean() ) {
-        """
-        mkdir ./tmp4sort
-        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-            -c ${chrom_sizes} --output-stats ${library}.${run}.${chunk}.stats ${bam} \
-                | pairsamtools sort --nproc ${task.cpus} \
-                                    -o ${library}.${run}.${chunk}.pairsam.${suffix} \
-                                    --tmpdir ./tmp4sort \
-                | cat
+    """
+    mkdir ./tmp4sort
+    pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+        -c ${chrom_sizes} ${bam} \
+            | pairsamtools sort --nproc ${task.cpus} \
+                                -o ${library}.${run}.${chunk}.pairsam.${suffix} \
+                                --tmpdir ./tmp4sort \
+            | cat
 
-        rm -rf ./tmp4sort
 
-        """        
-    } else {
-        """
-        mkdir ./tmp4sort
-        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-            -c ${chrom_sizes} ${bam} \
-                | pairsamtools sort --nproc ${task.cpus} \
-                                    -o ${library}.${run}.${chunk}.pairsam.${suffix} \
-                                    --tmpdir ./tmp4sort \
-                | cat
+    rm -rf ./tmp4sort
 
-        touch ${library}.${run}.${chunk}.stats
-
-        rm -rf ./tmp4sort
-
-        """        
-    }
+    """        
 
 }
 
@@ -430,65 +412,6 @@ process merge_runs_into_libraries {
         """
 }
 
-/*
- * Merge .stats for chunks into runs
- */
-LIB_RUN_CHUNK_STATS
-    .groupTuple(by: [0, 1])
-    .set {RUN_STATS_TO_MERGE}
-
-process merge_stats_chunks_into_runs {
-    tag "library:${library} run:${run}"
-    publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
-
-    input:
-    set val(library), val(run), file(chunk_stats) from RUN_STATS_TO_MERGE
-     
-    output:
-    set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
-
-    script:
-    if( isSingleFile(chunk_stats))
-        """
-        ln -s ${chunk_stats} ${library}.${run}.stats
-        """
-    else
-        """
-        pairsamtools stats --merge ${chunk_stats} -o ${library}.${run}.stats
-        """
-}
-
-/*
- * Merge .stats for runs into libraries
- */
-
-LIB_RUN_STATS
-    .map {library, run, stats -> tuple(library, stats)}
-    .groupTuple()
-    .set {LIB_STATS_TO_MERGE}
-
-process merge_stats_runs_into_libraries {
-    tag "library:${library}"
-    publishDir path: getOutDir('stats_library'), pattern: "*.stats", mode:"copy"
- 
-    input:
-    set val(library), file(run_stats) from LIB_STATS_TO_MERGE
-     
-    output:
-    set library, "${library}.stats" into LIB_STATS
-
-    script:
-    if( isSingleFile(run_stats))
-        """
-        ln -s ${run_stats} ${library}.stats
-        """
-    else
-        """
-        pairsamtools stats --merge ${run_stats} -o ${library}.stats
-        """
-}
-
-
 
 /*
  * Make pairs bam
@@ -516,7 +439,7 @@ process filter_make_pairs {
         return getOutDir("bams_library") +"/${library}.unmapped.bam"
 
       if( it.endsWith('.dedup.stats' ))
-        return getOutDir("stats_library") +"/${library}.dedup.stats.tsv"
+        return getOutDir("stats_library") +"/${library}.dedup.stats"
     }
 
  
@@ -794,7 +717,7 @@ process zoom_library_group_coolers{
 LIBRARY_GROUPS = Channel.from( params.input.library_groups.collect{ k, v -> [k, v] })
 
 LIBRARY_GROUPS
-    .combine(LIB_STATS.mix(LIB_DEDUP_STATS))
+    .combine(LIB_DEDUP_STATS)
     .filter{ it[1].contains(it[2]) } 
     .map {library_group, libraries, library, stats -> tuple(library_group, stats)}
     .groupTuple()
