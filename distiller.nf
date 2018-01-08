@@ -172,7 +172,6 @@ process fastqc{
 
     tag "library:${library} run:${run} side:${side}"
     publishDir path: getOutDir('fastqc'), mode:"copy"
-    cpus params.fastqc_cpus
 
     input:
     set val(library), val(run), val(side), file(fastq) from LIB_RUN_SIDE_FASTQS_FOR_QC
