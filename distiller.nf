@@ -58,7 +58,25 @@ String checkLeftRightChunk(left_chunk_fname,right_chunk_fname) {
     return left_chunk_idx
 }
 
+// CHROM_SIZES:
+// we need 2 copies of this Channel
+// for Parsing and Binning:
+Channel.from([
+          file(params.input.genome.chrom_sizes_path)
+             ]).into{CHROM_SIZES_FOR_PARSING,
+                     CHROM_SIZES_FOR_BINNING}
 
+
+// LIBRARY_GROUPS:
+// we need 2 copies of this Channel
+// for Parsing and Binning:
+Channel.from(
+          params.input.library_groups.collect{ k, v -> [k, v] }
+            ).into{LIBRARY_GROUPS_FOR_COOLER_MERGE,
+                   LIBRARY_GROUPS_FOR_STATS_MERGE}
+
+
+// the Channel the location of Raw Data (fastqs):
 LIB_RUN_SOURCES = Channel.from(
     params.input.raw_reads_paths.collect{
         k, v -> v.collect{k2, v2 -> [k,k2]+v2}}.sum())
@@ -292,7 +310,7 @@ BWA_INDEX = Channel.from([[
 /*
  * Map fastq files
  */
-process map_runs {
+process map_chunks {
     tag "library:${library} run:${run} chunk:${chunk}"
     storeDir getIntermediateDir('bam_run')
 
@@ -321,15 +339,14 @@ process map_runs {
  */
 
 
-CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
-process parse_runs {
+process parse_chunks {
     tag "library:${library} run:${run} chunk:${chunk}"
     storeDir getIntermediateDir('pairsam_chunk')
 
     input:
     set val(library), val(run), val(chunk), file(bam) from LIB_RUN_CHUNK_BAMS
-    file(chrom_sizes) from CHROM_SIZES.first()
+    file(chrom_sizes) from CHROM_SIZES_FOR_PARSING.first()
      
     output:
     set library, run, "${library}.${run}.${chunk}.pairsam.${suffix}" into LIB_RUN_CHUNK_PAIRSAMS
@@ -540,7 +557,6 @@ process index_pairs{
  * Bin indexed .pairs into .cool matrices.
  */ 
 
-CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
 process bin_library_pairs{
     tag "library:${library} resolution:${res}"
@@ -550,7 +566,7 @@ process bin_library_pairs{
     input:
         set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
         each res from params['bin'].resolutions
-        file(chrom_sizes) from CHROM_SIZES.first()
+        file(chrom_sizes) from CHROM_SIZES_FOR_BINNING.first()
 
     output:
         set library, res, "${library}.${res}.cool" into LIB_RES_COOLERS, LIB_RES_COOLERS_TO_ZOOM
@@ -627,9 +643,7 @@ process zoom_library_coolers{
  */ 
 
 
-LIBRARY_GROUPS = Channel.from( params.input.library_groups.collect{ k, v -> [k, v] })
-
-LIBRARY_GROUPS
+LIBRARY_GROUPS_FOR_COOLER_MERGE
     .combine(LIB_RES_COOLERS)
     .filter{ it[1].contains(it[2]) } 
     .map {library_group, libraries, library, res, file -> tuple(library_group, res, file)}
@@ -724,9 +738,8 @@ process zoom_library_group_coolers{
  */ 
 
 
-LIBRARY_GROUPS = Channel.from( params.input.library_groups.collect{ k, v -> [k, v] })
 
-LIBRARY_GROUPS
+LIBRARY_GROUPS_FOR_STATS_MERGE
     .combine(LIB_DEDUP_STATS)
     .filter{ it[1].contains(it[2]) } 
     .map {library_group, libraries, library, stats -> tuple(library_group, stats)}
