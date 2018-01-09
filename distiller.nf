@@ -63,7 +63,7 @@ String checkLeftRightChunk(left_chunk_fname,right_chunk_fname) {
 // for Parsing and Binning:
 Channel.from([
           file(params.input.genome.chrom_sizes_path)
-             ]).into{CHROM_SIZES_FOR_PARSING,
+             ]).into{CHROM_SIZES_FOR_PARSING;
                      CHROM_SIZES_FOR_BINNING}
 
 
@@ -72,7 +72,7 @@ Channel.from([
 // for Parsing and Binning:
 Channel.from(
           params.input.library_groups.collect{ k, v -> [k, v] }
-            ).into{LIBRARY_GROUPS_FOR_COOLER_MERGE,
+            ).into{LIBRARY_GROUPS_FOR_COOLER_MERGE;
                    LIBRARY_GROUPS_FOR_STATS_MERGE}
 
 
