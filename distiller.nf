@@ -36,6 +36,47 @@ String getIntermediateDir(intermediate_type) {
                 intermediate_type, intermediate_type)).getCanonicalPath()
 }
 
+String checkLeftRightChunk(left_chunk_fname,right_chunk_fname) {
+    // checks if the chunk index is the same 
+    // both for left and right chunks and returns 
+    // that chunk index:
+    // left by design:  ${library}.${run}.*.1.fastq.gz
+    // right by design: ${library}.${run}.*.2.fastq.gz
+    left_chunk_idx  =  left_chunk_fname.toString().tokenize('.')[-4]
+    right_chunk_idx = right_chunk_fname.toString().tokenize('.')[-4]
+    leftness_of_chunk  =  left_chunk_fname.toString().tokenize('.')[-3]
+    rightness_of_chunk = right_chunk_fname.toString().tokenize('.')[-3]
+    // assertions (should never happen by design, by just in case):
+    // sidedness should be different:
+    assert leftness_of_chunk != rightness_of_chunk: ("Sidedness suffix of"
+                                                    +"LEFT and RIGHT sides of"
+                                                    +"fastq chunks should DIFFER!")
+    assert left_chunk_idx == right_chunk_idx: ("Chunk index of"
+                                            +"LEFT and RIGHT sides of"
+                                            +"fastq chunks should be IDENTICAL!")
+    // return Chunk index of fastq chunk:
+    return left_chunk_idx
+}
+
+// CHROM_SIZES:
+// we need 2 copies of this Channel
+// for Parsing and Binning:
+Channel.from([
+          file(params.input.genome.chrom_sizes_path)
+             ]).into{CHROM_SIZES_FOR_PARSING;
+                     CHROM_SIZES_FOR_BINNING}
+
+
+// LIBRARY_GROUPS:
+// we need 2 copies of this Channel
+// for Parsing and Binning:
+Channel.from(
+          params.input.library_groups.collect{ k, v -> [k, v] }
+            ).into{LIBRARY_GROUPS_FOR_COOLER_MERGE;
+                   LIBRARY_GROUPS_FOR_STATS_MERGE}
+
+
+// the Channel the location of Raw Data (fastqs):
 LIB_RUN_SOURCES = Channel.from(
     params.input.raw_reads_paths.collect{
         k, v -> v.collect{k2, v2 -> [k,k2]+v2}}.sum())
@@ -172,7 +213,6 @@ process fastqc{
 
     tag "library:${library} run:${run} side:${side}"
     publishDir path: getOutDir('fastqc'), mode:"copy"
-    cpus params.fastqc_cpus
 
     input:
     set val(library), val(run), val(side), file(fastq) from LIB_RUN_SIDE_FASTQS_FOR_QC
@@ -234,42 +274,30 @@ process chunk_fastqs {
 }
 
 
+// use new transpose operator 
+// to undo 'groupBy' of 'chunk_fastqs' process:
+// https://github.com/nextflow-io/nextflow/issues/440
 LIB_RUN_FASTQ_CHUNKED
-    .map{v->[v[0],
-             v[1],
-             (v[2] instanceof Collection ? v[2] : [v[2]]),
-             (v[3] instanceof Collection ? v[3] : [v[3]])
-             ] }
-    .into {CHUNKS_SIDE_1; CHUNKS_SIDE_2}
+.transpose()
+.map{[it[0],
+      it[1],
+      // index of the chunk (checked for safety):
+      checkLeftRightChunk(it[2],it[3]),
+      it[2],
+      it[3]]}
+.set{ LIB_RUN_CHUNK_FASTQ }
 
-CHUNKS_SIDE_1
-    .flatMap{ 
-        vs -> vs[2].collect{ 
-            it -> [vs[0],
-                   vs[1], 
-                   it.toString().tokenize('.')[-4], 
-                   it] }}
-    .set{CHUNKS_SIDE_1}
 
-CHUNKS_SIDE_2
-    .flatMap{ 
-        vs -> vs[3].collect{ 
-            it -> [vs[0],
-                   vs[1], 
-                   it.toString().tokenize('.')[-4],
-                   it] }}
-    .set{CHUNKS_SIDE_2}
+LIB_RUN_FASTQS_NO_CHUNK
+.map{[it[0],
+      it[1],
+      // index of the non-chunked is 0:
+      0,
+      it[2],
+      it[3]]}
+.mix(LIB_RUN_CHUNK_FASTQ)
+.set{LIB_RUN_CHUNK_FASTQ}
 
-CHUNKS_SIDE_1
-    .phase(CHUNKS_SIDE_2) { [it[0], it[1], it[2]] }
-    .map{ [it[0][0], it[0][1], it[0][2], it[0][3], it[1][3]] }
-    .set{ LIB_RUN_CHUNK_FASTQ }
-
-LIB_RUN_CHUNK_FASTQ
-    .mix(
-        LIB_RUN_FASTQS_NO_CHUNK
-            .map { [it[0], it[1], 0, it[2], it[3]] } )
-    .set{LIB_RUN_CHUNK_FASTQ}
 
 BWA_INDEX = Channel.from([[
              params.input.genome.bwa_index_wildcard
@@ -282,7 +310,7 @@ BWA_INDEX = Channel.from([[
 /*
  * Map fastq files
  */
-process map_runs {
+process map_chunks {
     tag "library:${library} run:${run} chunk:${chunk}"
     storeDir getIntermediateDir('bam_run')
 
@@ -311,55 +339,36 @@ process map_runs {
  */
 
 
-CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
-process parse_runs {
+process parse_chunks {
     tag "library:${library} run:${run} chunk:${chunk}"
     storeDir getIntermediateDir('pairsam_chunk')
-    publishDir path: getOutDir('stats_chunk'), pattern: "*.stats", mode:"copy"
 
     input:
     set val(library), val(run), val(chunk), file(bam) from LIB_RUN_CHUNK_BAMS
-    file(chrom_sizes) from CHROM_SIZES.first()
+    file(chrom_sizes) from CHROM_SIZES_FOR_PARSING.first()
      
     output:
     set library, run, "${library}.${run}.${chunk}.pairsam.${suffix}" into LIB_RUN_CHUNK_PAIRSAMS
-    set library, run, "${library}.${run}.${chunk}.stats" into LIB_RUN_CHUNK_STATS
  
     script:
     dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
     dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
     dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
 
-    if( params.get('do_stats', 'true').toBoolean() ) {
-        """
-        mkdir ./tmp4sort
-        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-            -c ${chrom_sizes} --output-stats ${library}.${run}.${chunk}.stats ${bam} \
-                | pairsamtools sort --nproc ${task.cpus} \
-                                    -o ${library}.${run}.${chunk}.pairsam.${suffix} \
-                                    --tmpdir ./tmp4sort \
-                | cat
+    """
+    mkdir ./tmp4sort
+    pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+        -c ${chrom_sizes} ${bam} \
+            | pairsamtools sort --nproc ${task.cpus} \
+                                -o ${library}.${run}.${chunk}.pairsam.${suffix} \
+                                --tmpdir ./tmp4sort \
+            | cat
 
-        rm -rf ./tmp4sort
 
-        """        
-    } else {
-        """
-        mkdir ./tmp4sort
-        pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-            -c ${chrom_sizes} ${bam} \
-                | pairsamtools sort --nproc ${task.cpus} \
-                                    -o ${library}.${run}.${chunk}.pairsam.${suffix} \
-                                    --tmpdir ./tmp4sort \
-                | cat
+    rm -rf ./tmp4sort
 
-        touch ${library}.${run}.${chunk}.stats
-
-        rm -rf ./tmp4sort
-
-        """        
-    }
+    """        
 
 }
 
@@ -430,65 +439,6 @@ process merge_runs_into_libraries {
         """
 }
 
-/*
- * Merge .stats for chunks into runs
- */
-LIB_RUN_CHUNK_STATS
-    .groupTuple(by: [0, 1])
-    .set {RUN_STATS_TO_MERGE}
-
-process merge_stats_chunks_into_runs {
-    tag "library:${library} run:${run}"
-    publishDir path: getOutDir('stats_run'), pattern: "*.stats", mode:"copy"
-
-    input:
-    set val(library), val(run), file(chunk_stats) from RUN_STATS_TO_MERGE
-     
-    output:
-    set library, run, "${library}.${run}.stats" into LIB_RUN_STATS
-
-    script:
-    if( isSingleFile(chunk_stats))
-        """
-        ln -s ${chunk_stats} ${library}.${run}.stats
-        """
-    else
-        """
-        pairsamtools stats --merge ${chunk_stats} -o ${library}.${run}.stats
-        """
-}
-
-/*
- * Merge .stats for runs into libraries
- */
-
-LIB_RUN_STATS
-    .map {library, run, stats -> tuple(library, stats)}
-    .groupTuple()
-    .set {LIB_STATS_TO_MERGE}
-
-process merge_stats_runs_into_libraries {
-    tag "library:${library}"
-    publishDir path: getOutDir('stats_library'), pattern: "*.stats", mode:"copy"
- 
-    input:
-    set val(library), file(run_stats) from LIB_STATS_TO_MERGE
-     
-    output:
-    set library, "${library}.stats" into LIB_STATS
-
-    script:
-    if( isSingleFile(run_stats))
-        """
-        ln -s ${run_stats} ${library}.stats
-        """
-    else
-        """
-        pairsamtools stats --merge ${run_stats} -o ${library}.stats
-        """
-}
-
-
 
 /*
  * Make pairs bam
@@ -516,7 +466,7 @@ process filter_make_pairs {
         return getOutDir("bams_library") +"/${library}.unmapped.bam"
 
       if( it.endsWith('.dedup.stats' ))
-        return getOutDir("stats_library") +"/${library}.dedup.stats.tsv"
+        return getOutDir("stats_library") +"/${library}.dedup.stats"
     }
 
  
@@ -607,7 +557,6 @@ process index_pairs{
  * Bin indexed .pairs into .cool matrices.
  */ 
 
-CHROM_SIZES = Channel.from([ file(params.input.genome.chrom_sizes_path) ])
 
 process bin_library_pairs{
     tag "library:${library} resolution:${res}"
@@ -617,7 +566,7 @@ process bin_library_pairs{
     input:
         set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
         each res from params['bin'].resolutions
-        file(chrom_sizes) from CHROM_SIZES.first()
+        file(chrom_sizes) from CHROM_SIZES_FOR_BINNING.first()
 
     output:
         set library, res, "${library}.${res}.cool" into LIB_RES_COOLERS, LIB_RES_COOLERS_TO_ZOOM
@@ -694,9 +643,7 @@ process zoom_library_coolers{
  */ 
 
 
-LIBRARY_GROUPS = Channel.from( params.input.library_groups.collect{ k, v -> [k, v] })
-
-LIBRARY_GROUPS
+LIBRARY_GROUPS_FOR_COOLER_MERGE
     .combine(LIB_RES_COOLERS)
     .filter{ it[1].contains(it[2]) } 
     .map {library_group, libraries, library, res, file -> tuple(library_group, res, file)}
@@ -791,10 +738,9 @@ process zoom_library_group_coolers{
  */ 
 
 
-LIBRARY_GROUPS = Channel.from( params.input.library_groups.collect{ k, v -> [k, v] })
 
-LIBRARY_GROUPS
-    .combine(LIB_STATS.mix(LIB_DEDUP_STATS))
+LIBRARY_GROUPS_FOR_STATS_MERGE
+    .combine(LIB_DEDUP_STATS)
     .filter{ it[1].contains(it[2]) } 
     .map {library_group, libraries, library, stats -> tuple(library_group, stats)}
     .groupTuple()
