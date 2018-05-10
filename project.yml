@@ -1,86 +1,137 @@
+#########################################
+# THIS IS A TYPICAL project.yml TEMPLATE
+# most of the settings present here
+# are GO for mapping production data
+# but nonetheless user must consider
+# carefully every presented option
+#########################################
+
+
+# choose if you want to do FastQC:
 do_fastqc: False
+# choose if you want to do pairsamtools statistics:
 do_stats: True
     
 
+#######################################
+# provide paths to your raw input data (fastq-s):
+#######################################
 # Fastqs can be provided as:
 # -- a pairs of relative/absolute paths
 # -- sra:<SRA_NUMBER>, optionally followed by the indices of the first and
 # the last entry in the SRA in the form of "?start=<first>&end=<last>
-# [to implement] -- as a path to a folder with fastqs '<base_folder>', with the structure 
-# <base_folder>/<library_name>/<run_name>/, with each folder containing only
-# two fastq.gz files
 input:
     raw_reads_paths:
-        MATalpha_R1:
+        # substitute the location of your fastq files:
+        # an example of a 1-lane library:
+        your_library_name_1:
             lane1:
-                - ./test/fastq/MATalpha_R1/lane1/SRR2601842_1.fastq.gz
-                - ./test/fastq/MATalpha_R1/lane1/SRR2601842_2.fastq.gz
-#                 Alternatively, reads can be downloaded from SRA
-#                - sra:SRR2601842
-#                 - sra:SRR2601843?start=0&end=10000
+                - /path/to/your/fastq/from/library1/library1_R1.fastq.gz
+                - /path/to/your/fastq/from/library1/library1_R2.fastq.gz
+        # an example of a 2-lane library:
+        # mapped reads from both lanes will be pulled togheter
+        # and deduplicated as one.
+        your_library_name_2:
+            lane1:
+                - /path/to/your/fastq/from/library1/library2_lane1_R1.fastq.gz
+                - /path/to/your/fastq/from/library1/library2_lane1_R2.fastq.gz
             lane2:
-#                 Files can also be provided as http/ftp/s3 links
+                - /path/to/your/fastq/from/library1/library2_lane2_R1.fastq.gz
+                - /path/to/your/fastq/from/library1/library2_lane2_R2.fastq.gz
+        # an example of a 3-lane library:
+        # mapped reads from both lanes will be pulled togheter
+        # and deduplicated as one.
+        your_library_name_3:
+            lane1:
+                - /path/to/your/fastq/from/library1/library3_lane1_R1.fastq.gz
+                - /path/to/your/fastq/from/library1/library3_lane1_R2.fastq.gz
+            lane2:
+                - /path/to/your/fastq/from/library1/library3_lane2_R1.fastq.gz
+                - /path/to/your/fastq/from/library1/library3_lane2_R2.fastq.gz
+            lane3:
+                - /path/to/your/fastq/from/library1/library3_lane3_R1.fastq.gz
+                - /path/to/your/fastq/from/library1/library3_lane3_R2.fastq.gz
+        your_library_online:
+            lane1:
+                # Files can be provided as http/ftp/s3 links
                 - https://github.com/mirnylab/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
                 - https://github.com/mirnylab/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
-#                - ./test/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
-#                - ./test/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
-        MATalpha_R2:
-            lane1:
-                - ./test/fastq/MATalpha_R2/lane1/SRR2601845_1.fastq.gz
-                - ./test/fastq/MATalpha_R2/lane1/SRR2601845_2.fastq.gz
-        MATa_R1:
-            lane1:
-                - ./test/fastq/MATa_R1/lane1/SRR2601848_1.fastq.gz
-                - ./test/fastq/MATa_R1/lane1/SRR2601848_2.fastq.gz
-        MATa_R2:
-            lane1:
-                - ./test/fastq/MATa_R2/lane1/SRR2601851_1.fastq.gz
-                - ./test/fastq/MATa_R2/lane1/SRR2601851_2.fastq.gz
+            lane2:
+                # Alternatively, reads can be downloaded from SRA
+                - sra:SRR2601842
+            lane3:
+                # or like that:
+                - sra:SRR2601843?start=0&end=10000
 
+
+    # independent libraries can be combined together
+    # on the level of binned-data (.cool files)
+    # describe your groupings of choice here:
     library_groups:
-        MATalpha:
-            - MATalpha_R1
-            - MATalpha_R2
-        MATa:
-            - MATa_R1
-            - MATa_R2
-        all:
-            - MATa_R1
-            - MATa_R2
-            - MATalpha_R1
-            - MATalpha_R2
+        libraries_1_and_2:
+            - your_library_name_1
+            - your_library_name_2
+        all_libraries:
+            - your_library_name_1
+            - your_library_name_2
+            - your_library_name_3
+            - your_library_online
 
+
+    # provide a refence genome to map your raw reads to.
+    # BWA-indexed genome and a file with chromosome names and sizes are required.
     genome:
-        assembly: 'sacCer3'
-        bwa_index_wildcard: 'test/genome/sacCer3.fa.gz.*'
-        chrom_sizes_path: 'test/genome/sacCer3.reduced.chrom.sizes'
+        assembly: 'hg19'
+        bwa_index_wildcard: '/path/to/your/reference/genome/hg19.fa.*'
+        chrom_sizes_path:   '/path/to/your/reference/genome/hg19.reduced.chrom.sizes'
 
+
+# choose mapping and pairsamtools
+# processing parameters.
 map:
-    chunksize: 6000
-    drop_sam: False
-    drop_readid: False
-    drop_seq: False
-    # just an innocent BWA MEM option to test
-    mapping_options: '-v 3'
+    # control the fastq-chunking, typically within 5-30 millions range:
+    chunksize: 10000000
+    # drop following entries from file with pairs
+    # to speed up processing, or keep them for debugging:
+    drop_sam: True
+    drop_readid: True
+    drop_seq: True
+    # more BWA mapping options.
+    # mapping_options: ''
 
+
+# pairs deduplication parameter:
 filter:
-    pcr_dups_max_mismatch_bp: 3
+    pcr_dups_max_mismatch_bp: 1
 
+
+# binning parameters for cooler:
 bin:
+    # pick your resolutions of choice:
     resolutions:
         - 1000000
-        - 400000
+        - 500000
         - 200000
         - 100000
         - 40000
-        # - 20000
-        # - 10000
+        - 20000
+        - 10000
+        - 5000
+        - 1000
     balance: True
-    balance_options: '--tol 0.05'
+    # additional balancing parameters:
+    # balance_options: ''
+    # enable zoomify option to produce .mcool files
+    # suitable for visualiztion in HiGlass
+    # zoomified for the smallest resolution (1000 in this case).
     zoomify: True
 
+
+########################################
+# folder structure for storing results
+########################################
 intermediates:
-    base_dir: 'test/intermediates/'
+    base_dir: 'results/intermediates/'
     dirs:
         downloaded_fastqs: 'downloaded_fastqs/'
         fastq_chunks: 'fastq_chunks'
@@ -90,7 +141,7 @@ intermediates:
         pairsam_library: 'pairsam/library'
 
 output:
-    base_dir: 'test/output/'
+    base_dir: 'results/output/'
     dirs:
         fastqc: 'fastqc/'
         pairs_library: 'pairs/library/'
