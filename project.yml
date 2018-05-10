@@ -26,31 +26,31 @@ input:
         # an example of a 1-lane library:
         your_library_name_1:
             lane1:
-                - /path/to/your/fastq/from/library1/library1_R1.fastq.gz
-                - /path/to/your/fastq/from/library1/library1_R2.fastq.gz
+                - /path/to/your/fastq/from/library1/library1_side1.fastq.gz
+                - /path/to/your/fastq/from/library1/library1_side2.fastq.gz
         # an example of a 2-lane library:
         # mapped reads from both lanes will be pulled togheter
         # and deduplicated as one.
         your_library_name_2:
             lane1:
-                - /path/to/your/fastq/from/library1/library2_lane1_R1.fastq.gz
-                - /path/to/your/fastq/from/library1/library2_lane1_R2.fastq.gz
+                - /path/to/your/fastq/from/library1/library2_lane1_side1.fastq.gz
+                - /path/to/your/fastq/from/library1/library2_lane1_side2.fastq.gz
             lane2:
-                - /path/to/your/fastq/from/library1/library2_lane2_R1.fastq.gz
-                - /path/to/your/fastq/from/library1/library2_lane2_R2.fastq.gz
+                - /path/to/your/fastq/from/library1/library2_lane2_side1.fastq.gz
+                - /path/to/your/fastq/from/library1/library2_lane2_side2.fastq.gz
         # an example of a 3-lane library:
         # mapped reads from both lanes will be pulled togheter
         # and deduplicated as one.
         your_library_name_3:
             lane1:
-                - /path/to/your/fastq/from/library1/library3_lane1_R1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane1_R2.fastq.gz
+                - /path/to/your/fastq/from/library1/library3_lane1_side1.fastq.gz
+                - /path/to/your/fastq/from/library1/library3_lane1_side2.fastq.gz
             lane2:
-                - /path/to/your/fastq/from/library1/library3_lane2_R1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane2_R2.fastq.gz
+                - /path/to/your/fastq/from/library1/library3_lane2_side1.fastq.gz
+                - /path/to/your/fastq/from/library1/library3_lane2_side2.fastq.gz
             lane3:
-                - /path/to/your/fastq/from/library1/library3_lane3_R1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane3_R2.fastq.gz
+                - /path/to/your/fastq/from/library1/library3_lane3_side1.fastq.gz
+                - /path/to/your/fastq/from/library1/library3_lane3_side2.fastq.gz
         your_library_online:
             lane1:
                 # Files can be provided as http/ftp/s3 links
