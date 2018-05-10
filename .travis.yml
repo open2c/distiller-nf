@@ -14,4 +14,4 @@ install:
 
 script:
     - bash setup_test.sh
-    - nextflow distiller.nf -params-file project.yml
+    - nextflow distiller.nf -params-file ./test/test_project.yml

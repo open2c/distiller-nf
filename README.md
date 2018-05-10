@@ -32,7 +32,7 @@ This will download the distiller pipeline and the configuration files.
 Then:
 - configure the location of the input files and other project details
 in `project.yml`
-- configure the hardware/system details in `nextflow.config`
+- configure the hardware/system details in `nextflow.config` and/or in `./configs/*.config`
 
 Launch distiller as:
 
@@ -40,13 +40,13 @@ Launch distiller as:
 $ nextflow distiller.nf -params-file project.yml
 ```
 
-### Example
+### Test example
 
 In a new project folder, execute:
 
 ```sh
 $ nextflow clone mirnylab/distiller  ./
 $ bash setup_test.sh
-$ nextflow distiller.nf -params-file project.yml 
+$ nextflow distiller.nf -params-file ./test/test_project.yml 
 ```
 

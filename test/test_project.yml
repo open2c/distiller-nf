@@ -1,0 +1,106 @@
+do_fastqc: False
+do_stats: True
+    
+
+# Fastqs can be provided as:
+# -- a pairs of relative/absolute paths
+# -- sra:<SRA_NUMBER>, optionally followed by the indices of the first and
+# the last entry in the SRA in the form of "?start=<first>&end=<last>
+# [to implement] -- as a path to a folder with fastqs '<base_folder>', with the structure 
+# <base_folder>/<library_name>/<run_name>/, with each folder containing only
+# two fastq.gz files
+input:
+    raw_reads_paths:
+        MATalpha_R1:
+            lane1:
+                - ./test/fastq/MATalpha_R1/lane1/SRR2601842_1.fastq.gz
+                - ./test/fastq/MATalpha_R1/lane1/SRR2601842_2.fastq.gz
+#                 Alternatively, reads can be downloaded from SRA
+#                - sra:SRR2601842
+#                 - sra:SRR2601843?start=0&end=10000
+            lane2:
+#                 Files can also be provided as http/ftp/s3 links
+                - https://github.com/mirnylab/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
+                - https://github.com/mirnylab/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
+#                - ./test/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
+#                - ./test/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
+        MATalpha_R2:
+            lane1:
+                - ./test/fastq/MATalpha_R2/lane1/SRR2601845_1.fastq.gz
+                - ./test/fastq/MATalpha_R2/lane1/SRR2601845_2.fastq.gz
+        MATa_R1:
+            lane1:
+                - ./test/fastq/MATa_R1/lane1/SRR2601848_1.fastq.gz
+                - ./test/fastq/MATa_R1/lane1/SRR2601848_2.fastq.gz
+        MATa_R2:
+            lane1:
+                - ./test/fastq/MATa_R2/lane1/SRR2601851_1.fastq.gz
+                - ./test/fastq/MATa_R2/lane1/SRR2601851_2.fastq.gz
+
+    library_groups:
+        MATalpha:
+            - MATalpha_R1
+            - MATalpha_R2
+        MATa:
+            - MATa_R1
+            - MATa_R2
+        all:
+            - MATa_R1
+            - MATa_R2
+            - MATalpha_R1
+            - MATalpha_R2
+
+    genome:
+        assembly: 'sacCer3'
+        bwa_index_wildcard: 'test/genome/sacCer3.fa.gz.*'
+        chrom_sizes_path: 'test/genome/sacCer3.reduced.chrom.sizes'
+
+map:
+    chunksize: 6000
+    drop_sam: False
+    drop_readid: False
+    drop_seq: False
+    # just an innocent BWA MEM option to test
+    mapping_options: '-v 3'
+
+filter:
+    pcr_dups_max_mismatch_bp: 3
+
+bin:
+    resolutions:
+        - 1000000
+        - 400000
+        - 200000
+        - 100000
+        - 40000
+        # - 20000
+        # - 10000
+    balance: True
+    balance_options: '--tol 0.05'
+    zoomify: True
+
+intermediates:
+    base_dir: 'test/intermediates/'
+    dirs:
+        downloaded_fastqs: 'downloaded_fastqs/'
+        fastq_chunks: 'fastq_chunks'
+        bam_run: 'bam/run'
+        pairsam_chunk: 'pairsam/chunk'
+        pairsam_run: 'pairsam/run'
+        pairsam_library: 'pairsam/library'
+
+output:
+    base_dir: 'test/output/'
+    dirs:
+        fastqc: 'fastqc/'
+        pairs_library: 'pairs/library/'
+        stats_chunk: 'stats/chunk/'
+        stats_run: 'stats/run/'
+        stats_library: 'stats/library/'
+        stats_library_group: 'stats/library_group/'
+        coolers_library: 'coolers/library/'
+        coolers_library_group: 'coolers/library_group/'
+        zoom_coolers_library: 'coolers/library_zoom/'
+        zoom_coolers_library_group: 'coolers/library_group_zoom/'
+        bams_library: 'bams/library/'
+
