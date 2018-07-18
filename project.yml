@@ -89,14 +89,23 @@ input:
 # choose mapping and pairsamtools
 # processing parameters.
 map:
-    # control the fastq-chunking, typically within 5-30 millions range:
-    chunksize: 10000000
+    # uncomment to split each run into chunks which are mapped separately.
+    # Useful for mapping on clusters with many relatively weak nodes.
+    # The optimal chunk size is defined by the balance between mapping and merging.
+    # Smaller chunks (~30M) are better for clusters with many weak nodes,
+    # however, having >~10 chunks per run can lead to very slow merging.
+    
+    #chunksize: 100000000
+    
     # drop following entries from file with pairs
     # to speed up processing, or keep them for debugging:
+    
     drop_sam: True
     drop_readid: True
     drop_seq: True
+
     # more BWA mapping options.
+    
     # mapping_options: ''
 
 
