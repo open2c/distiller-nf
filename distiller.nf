@@ -358,11 +358,11 @@ process parse_chunks {
 
     """
     mkdir ./tmp4sort
-    pairsamtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+    pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
         -c ${chrom_sizes} ${bam} \
-            | pairsamtools sort --nproc ${task.cpus} \
-                                -o ${library}.${run}.${chunk}.pairsam.${suffix} \
-                                --tmpdir ./tmp4sort \
+            | pairtools sort --nproc ${task.cpus} \
+                             -o ${library}.${run}.${chunk}.pairsam.${suffix} \
+                             --tmpdir ./tmp4sort \
             | cat
 
 
@@ -392,7 +392,7 @@ process merge_chunks_into_runs {
     set library, run, "${library}.${run}.pairsam.${suffix}" into LIB_RUN_PAIRSAMS
  
     script:
-    // can we replace this part with just the "else" branch, so that pairsamtools merge will take care of it?
+    // can we replace this part with just the "else" branch, so that pairtools merge will take care of it?
     if( isSingleFile(pairsam_chunks) )
         """
         ln -s \"\$(readlink -f ${pairsam_chunks})\" ${library}.${run}.pairsam.${suffix}
@@ -400,7 +400,7 @@ process merge_chunks_into_runs {
     else
         """
         mkdir ./tmp4sort
-        pairsamtools merge ${pairsam_chunks} --nproc ${task.cpus} -o ${library}.${run}.pairsam.${suffix} --tmpdir ./tmp4sort
+        pairtools merge ${pairsam_chunks} --nproc ${task.cpus} -o ${library}.${run}.pairsam.${suffix} --tmpdir ./tmp4sort
         rm -rf ./tmp4sort
         """
 
@@ -434,7 +434,7 @@ process merge_runs_into_libraries {
     else
         """
         mkdir ./tmp4sort
-        pairsamtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.${suffix} --tmpdir ./tmp4sort
+        pairtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.${suffix} --tmpdir ./tmp4sort
         rm -rf ./tmp4sort
         """
 }
@@ -484,7 +484,7 @@ process filter_make_pairs {
     dropsam = params['map'].get('drop_sam','false').toBoolean()
     if(dropsam) 
         """
-        pairsamtools dedup \
+        pairtools dedup \
             --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
             --mark-dups \
             --output ${library}.nodups.pairs.gz \
@@ -501,21 +501,21 @@ process filter_make_pairs {
         """
     else 
         """
-        pairsamtools dedup \
+        pairtools dedup \
             --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
             --mark-dups \
             --output \
-                >( pairsamtools split \
+                >( pairtools split \
                     --output-pairs ${library}.nodups.pairs.gz \
                     --output-sam ${library}.nodups.bam \
                  ) \
             --output-unmapped \
-                >( pairsamtools split \
+                >( pairtools split \
                     --output-pairs ${library}.unmapped.pairs.gz \
                     --output-sam ${library}.unmapped.bam \
                  ) \
             --output-dups \
-                >( pairsamtools split \
+                >( pairtools split \
                     --output-pairs ${library}.dups.pairs.gz \
                     --output-sam ${library}.dups.bam \
                  ) \
@@ -764,7 +764,7 @@ process merge_stats_libraries_into_groups {
         """
     else
         """
-        pairsamtools stats --merge ${stats} -o ${library_group}.stats
+        pairtools stats --merge ${stats} -o ${library_group}.stats
         """
 }
 

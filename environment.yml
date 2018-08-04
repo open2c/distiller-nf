@@ -21,7 +21,7 @@ dependencies:
     - dask
     - nose 
     - pairix
+    - pairtools
     - pip:
         - cooler>=0.7.1
-        - git+https://github.com/mirnylab/pairsamtools
         - toolz
