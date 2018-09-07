@@ -189,8 +189,48 @@ LIB_RUN_LOCAL_FASTQS
     .set{ LIB_RUN_FASTQS }
 
 
+/* 
+ * Truncate fastqs for quick semi-dry runs.
+ */
+
+LIB_RUN_FASTQS_NO_TRUNC = Channel.create()
+LIB_RUN_FASTQS_FOR_TRUNC = Channel.create()
+LIB_RUN_FASTQS
+    .choice(LIB_RUN_FASTQS_NO_TRUNC, LIB_RUN_FASTQS_FOR_TRUNC) {
+    it -> params['input'].get('truncate_fastq_reads', 0) == 0 ? 0 : 1
+}
+
+process truncate_fastqs{
+    executor 'local'
+
+    input:
+    set val(library), val(run), file(fastq1), file(fastq2) from LIB_RUN_FASTQS_FOR_TRUNC
+
+    output:
+    set library, run, 
+        "${library}.${run}.truncated_${truncate_fastq_reads}.1.fastq.gz", 
+        "${library}.${run}.truncated_${truncate_fastq_reads}.2.fastq.gz" into LIB_RUN_FASTQS_TRUNCATED
+
+    script:
+    truncate_fastq_reads = params['input']['truncate_fastq_reads']
+    truncate_lines = 4 * params['input']['truncate_fastq_reads']
+
+    """
+    zcat ${fastq1} | head -n ${truncate_lines} | pbgzip -c -n ${task.cpus} > \
+        ${library}.${run}.truncated_${truncate_fastq_reads}.1.fastq.gz
+
+    zcat ${fastq2} | head -n ${truncate_lines} | pbgzip -c -n ${task.cpus} > \
+        ${library}.${run}.truncated_${truncate_fastq_reads}.2.fastq.gz
+    """
+}
+
+LIB_RUN_FASTQS_TRUNCATED
+    .mix(LIB_RUN_FASTQS_NO_TRUNC)
+    .set{LIB_RUN_FASTQS}
+
+
 /*
- * FastQC the input files
+ * FastQC the input files.
  */
 
 LIB_RUN_FASTQS_FOR_QC = Channel.create()

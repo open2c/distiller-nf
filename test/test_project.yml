@@ -1,5 +1,4 @@
 do_fastqc: False
-do_stats: True
     
 
 # Fastqs can be provided as:
@@ -10,6 +9,9 @@ do_stats: True
 # <base_folder>/<library_name>/<run_name>/, with each folder containing only
 # two fastq.gz files
 input:
+    # truncate input fastqs to a small number of reads (e.g. 10000) for
+    # semi-dry test runs.
+    truncate_fastq_reads: 39000
     raw_reads_paths:
         MATalpha_R1:
             lane1:

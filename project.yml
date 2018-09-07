@@ -18,6 +18,9 @@ do_fastqc: False
 # -- sra:<SRA_NUMBER>, optionally followed by the indices of the first and
 # the last entry in the SRA in the form of "?start=<first>&end=<last>
 input:
+    # truncate input fastqs to a small number of reads (e.g. 10000) for
+    # semi-dry test runs.
+    truncate_fastq_reads: 0
     raw_reads_paths:
         # substitute the location of your fastq files:
         # an example of a 1-lane library:
