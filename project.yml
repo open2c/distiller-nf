@@ -9,10 +9,7 @@
 
 # choose if you want to do FastQC:
 do_fastqc: False
-# choose if you want to do pairsamtools statistics:
-do_stats: True
     
-
 #######################################
 # provide paths to your raw input data (fastq-s):
 #######################################
