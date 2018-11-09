@@ -138,6 +138,7 @@ process download_sra {
             fastq-dump -F ${srr}.sra --split-files --gzip
             mv ${srr}_1.fastq.gz ${library}.${run}.1.fastq.gz
             mv ${srr}_2.fastq.gz ${library}.${run}.2.fastq.gz
+            rm ${srr}.sra 
             """
         }
     }
