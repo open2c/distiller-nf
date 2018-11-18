@@ -400,6 +400,7 @@ process parse_chunks {
     """
     mkdir ./tmp4sort
     pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+        --add-columns mapq \
         -c ${chrom_sizes} ${bam} \
             | pairtools sort --nproc ${task.cpus} \
                              -o ${library}.${run}.${chunk}.pairsam.${suffix} \
