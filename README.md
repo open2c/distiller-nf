@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/mirnylab/distiller-nf.svg?branch=master)](https://travis-ci.org/mirnylab/distiller-nf)
 [![Join the chat at https://gitter.im/mirnylab/distiller](https://badges.gitter.im/mirnylab/distiller.svg)](https://gitter.im/mirnylab/distiller?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![DOI](https://zenodo.org/badge/89316568.svg)](https://zenodo.org/badge/latestdoi/89316568)
 
 ## A modular Hi-C mapping pipeline for reproducible data analysis.
 
