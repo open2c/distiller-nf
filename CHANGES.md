@@ -1,3 +1,7 @@
+### 0.2.0 (2018-11-18) ###
+
+* report mapq in .pairs
+
 ### 0.1.1 (2018-11-09) ###
 
 * remove .sra files when downloading data from SRA.
