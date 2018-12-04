@@ -12,12 +12,15 @@ vim: syntax=groovy
 switch(params.compression_format) {
     case 'gz':
         suffix = 'gz'
+        decompress_command = 'pbgzip -cd -n 3'
         break
     case 'lz4':
         suffix = 'lz4'
+        decompress_command = 'lz4c -cd'
         break
     default:
         suffix = 'gz'
+        decompress_command = 'pbgzip -cd -n 3'
         break
 }
 
@@ -351,62 +354,42 @@ BWA_INDEX = Channel.from([[
 /*
  * Map fastq files
  */
-process map_chunks {
+process map_parse_sort_chunks {
     tag "library:${library} run:${run} chunk:${chunk}"
-    storeDir getIntermediateDir('bam_run')
-
+    storeDir getIntermediateDir('mapped_parsed_sorted_chunks')
  
     input:
     set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQ
     set val(bwa_index_base), file(bwa_index_files) from BWA_INDEX.first()
+    file(chrom_sizes) from CHROM_SIZES_FOR_PARSING.first()
      
     output:
-    set library, run, chunk, "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_BAMS
+    set library, run, 
+        "${library}.${run}.${chunk}.pairsam.${suffix}",
+        "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_PAIRSAMS
 
     script:
     // additional mapping options or empty-line
     mapping_options = params['map'].get('mapping_options','')
- 
-    """
-    bwa mem -t ${task.cpus} ${mapping_options} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
-        | samtools view -bS > ${library}.${run}.${chunk}.bam \
-        | cat
-    """
-}
-
-
-/*
- * Parse mapped bams
- */
-
-
-
-process parse_chunks {
-    tag "library:${library} run:${run} chunk:${chunk}"
-    storeDir getIntermediateDir('pairsam_chunk')
-
-    input:
-    set val(library), val(run), val(chunk), file(bam) from LIB_RUN_CHUNK_BAMS
-    file(chrom_sizes) from CHROM_SIZES_FOR_PARSING.first()
-     
-    output:
-    set library, run, "${library}.${run}.${chunk}.pairsam.${suffix}" into LIB_RUN_CHUNK_PAIRSAMS
- 
-    script:
     dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
     dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
     dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
+    keep_unparsed_bams_command = ( 
+        params['map'].get('keep_unparsed_bams','false').toBoolean() ? 
+        "| tee >(samtools view -bS > ${library}.${run}.${chunk}.bam)" : "" )
 
     """
     mkdir ./tmp4sort
-    pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-        --add-columns mapq \
-        -c ${chrom_sizes} ${bam} \
+    touch ${library}.${run}.${chunk}.bam 
+    bwa mem -t ${task.cpus} ${mapping_options} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
+        ${keep_unparsed_bams_command} \
+        | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+            --add-columns mapq \
+            -c ${chrom_sizes} \
             | pairtools sort --nproc ${task.cpus} \
                              -o ${library}.${run}.${chunk}.pairsam.${suffix} \
                              --tmpdir ./tmp4sort \
             | cat
-
 
     rm -rf ./tmp4sort
 
@@ -414,136 +397,64 @@ process parse_chunks {
 
 }
 
-
-
 /*
- * Merge .pairsams for chunks into runs
+ * Merge .pairsams into libraries
  */
+
 LIB_RUN_CHUNK_PAIRSAMS
-     .groupTuple(by: [0, 1])
-     .set {LIB_RUN_GROUP_PAIRSAMS}
-
-process merge_chunks_into_runs {
-    tag "library:${library} run:${run}"
-    storeDir getIntermediateDir('pairsam_run')
- 
-    input:
-    set val(library), val(run), file(pairsam_chunks) from LIB_RUN_GROUP_PAIRSAMS
-     
-    output:
-    set library, run, "${library}.${run}.pairsam.${suffix}" into LIB_RUN_PAIRSAMS
- 
-    script:
-    // can we replace this part with just the "else" branch, so that pairtools merge will take care of it?
-    if( isSingleFile(pairsam_chunks) )
-        """
-        ln -s \"\$(readlink -f ${pairsam_chunks})\" ${library}.${run}.pairsam.${suffix}
-        """
-    else
-        """
-        mkdir ./tmp4sort
-        pairtools merge ${pairsam_chunks} --nproc ${task.cpus} -o ${library}.${run}.pairsam.${suffix} --tmpdir ./tmp4sort
-        rm -rf ./tmp4sort
-        """
-
-}
-
-/*
- * Merge .pairsams for runs into libraries
- */
-
-LIB_RUN_PAIRSAMS
-    .map {library, run, file -> tuple(library, file)}
+    .map {library, run, pairsam, bam -> tuple(library, pairsam)}
     .groupTuple()
     .set {LIB_PAIRSAMS_TO_MERGE}
 
-process merge_runs_into_libraries {
+process merge_dedup_splitbam {
     tag "library:${library}"
-    storeDir getIntermediateDir('pairsam_library')
-
+    storeDir getIntermediateDir('pairs_library')
  
     input:
     set val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_MERGE
      
     output:
-    set library, "${library}.pairsam.${suffix}" into LIB_PAIRSAMS
-
-    script:
-    if( isSingleFile(run_pairsam))
-        """
-        ln -s \"\$(readlink -f ${run_pairsam})\" ${library}.pairsam.${suffix}
-        """
-    else
-        """
-        mkdir ./tmp4sort
-        pairtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.${suffix} --tmpdir ./tmp4sort
-        rm -rf ./tmp4sort
-        """
-}
-
-
-/*
- * Make pairs bam
- */
-
-process filter_make_pairs {
-    tag "library:${library}"
-    publishDir path:'.', mode:"copy", saveAs: {
-      if( it.endsWith('.nodups.pairs.gz' ))
-        return getOutDir("pairs_library") +"/${library}.nodups.pairs.gz"
-
-      if( it.endsWith('.nodups.bam' ))
-        return getOutDir("bams_library") +"/${library}.nodups.bam"
-
-      if( it.endsWith('.dups.pairs.gz' ))
-        return getOutDir("pairs_library") +"/${library}.dups.pairs.gz"
-
-      if( it.endsWith('.dups.bam' ))
-        return getOutDir("bams_library") +"/${library}.dups.bam"
-
-      if( it.endsWith('.unmapped.pairs.gz' ))
-        return getOutDir("pairs_library") +"/${library}.unmapped.pairs.gz"
-
-      if( it.endsWith('.unmapped.bam' ))
-        return getOutDir("bams_library") +"/${library}.unmapped.bam"
-
-      if( it.endsWith('.dedup.stats' ))
-        return getOutDir("stats_library") +"/${library}.dedup.stats"
-    }
-
- 
-    input:
-    set val(library), file(pairsam_lib) from LIB_PAIRSAMS
-     
-    output:
-    set library, "${library}.nodups.pairs.gz", "${library}.nodups.bam",
+    set library, "${library}.nodups.pairs.gz", 
+                 "${library}.nodups.pairs.gz.px2", 
+                 "${library}.nodups.bam",
                  "${library}.dups.pairs.gz", "${library}.dups.bam", 
                  "${library}.unmapped.pairs.gz", 
                  "${library}.unmapped.bam" into LIB_PAIRS_BAMS
     set library, "${library}.dedup.stats" into LIB_DEDUP_STATS
-    
+ 
     script:
     dropsam = params['map'].get('drop_sam','false').toBoolean()
+    merge_command = ( 
+        isSingleFile(run_pairsam) ?
+        "${decompress_command}" : 
+        "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir ./tmp4sort"
+    )
+
     if(dropsam) 
         """
-        pairtools dedup \
+        mkdir ./tmp4sort
+
+        ${merge_command} | pairtools dedup \
             --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
             --mark-dups \
             --output ${library}.nodups.pairs.gz \
             --output-unmapped ${library}.unmapped.pairs.gz \
             --output-dups ${library}.dups.pairs.gz \
             --output-stats ${library}.dedup.stats \
-            ${pairsam_lib} \
             | cat
 
         touch ${library}.unmapped.bam
         touch ${library}.nodups.bam
         touch ${library}.dups.bam
 
+        rm -rf ./tmp4sort
+        pairix ${library}.nodups.pairs.gz
         """
     else 
         """
-        pairtools dedup \
+        mkdir ./tmp4sort
+
+        ${merge_command} | pairtools dedup \
             --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
             --mark-dups \
             --output \
@@ -562,43 +473,20 @@ process filter_make_pairs {
                     --output-sam ${library}.dups.bam \
                  ) \
             --output-stats ${library}.dedup.stats \
-            ${pairsam_lib} \
             | cat
 
+        rm -rf ./tmp4sort
+        pairix ${library}.nodups.pairs.gz
         """
-    
 }
-
-
-/*
- * Index .pairs.gz files with pairix
- */
 
 LIB_PAIRS_BAMS
-    .map {v -> tuple(v[0], v[1])}
-    .set {LIB_PAIRS}
-
-process index_pairs{
-    tag "library:${library}"
-    publishDir path: getOutDir('pairs_library'), mode:"copy", saveAs: {"${library}.nodups.pairs.gz.px2"}
-
-    input:
-    set val(library), file(pairs_lib) from LIB_PAIRS
-     
-    output:
-    set val(library), file(pairs_lib), file('*.px2') into LIB_IDX_PAIRS
- 
-    """
-    pairix ${pairs_lib}
-    """
-}
-
-
+    .map {v -> tuple(v[0], v[1], v[2])}
+    .set {LIB_IDX_PAIRS}
 
 /*
  * Bin indexed .pairs into .cool matrices.
  */ 
-
 
 process bin_library_pairs{
     tag "library:${library} resolution:${res}"

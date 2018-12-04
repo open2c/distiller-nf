@@ -62,6 +62,7 @@ map:
     drop_sam: False
     drop_readid: False
     drop_seq: False
+    keep_unparsed_bams: True
     # just an innocent BWA MEM option to test
     mapping_options: '-v 3'
 
@@ -82,20 +83,17 @@ bin:
     zoomify: True
 
 intermediates:
-    base_dir: 'test/intermediates/'
+    base_dir: 'results/intermediates/'
     dirs:
         downloaded_fastqs: 'downloaded_fastqs/'
         fastq_chunks: 'fastq_chunks'
-        bam_run: 'bam/run'
-        pairsam_chunk: 'pairsam/chunk'
-        pairsam_run: 'pairsam/run'
-        pairsam_library: 'pairsam/library'
+        mapped_parsed_sorted_chunks: 'mapped_parsed_sorted_chunks'
+        pairsam_library: 'pairs_library'
 
 output:
-    base_dir: 'test/output/'
+    base_dir: 'results/output/'
     dirs:
         fastqc: 'fastqc/'
-        pairs_library: 'pairs/library/'
         stats_chunk: 'stats/chunk/'
         stats_run: 'stats/run/'
         stats_library: 'stats/library/'

@@ -103,6 +103,7 @@ map:
     drop_sam: True
     drop_readid: True
     drop_seq: True
+    keep_unparsed_bams: True
 
     # more BWA mapping options.
     
@@ -144,16 +145,13 @@ intermediates:
     dirs:
         downloaded_fastqs: 'downloaded_fastqs/'
         fastq_chunks: 'fastq_chunks'
-        bam_run: 'bam/run'
-        pairsam_chunk: 'pairsam/chunk'
-        pairsam_run: 'pairsam/run'
-        pairsam_library: 'pairsam/library'
+        mapped_parsed_sorted_chunks: 'mapped_parsed_sorted_chunks'
+        pairsam_library: 'pairs_library'
 
 output:
     base_dir: 'results/output/'
     dirs:
         fastqc: 'fastqc/'
-        pairs_library: 'pairs/library/'
         stats_chunk: 'stats/chunk/'
         stats_run: 'stats/run/'
         stats_library: 'stats/library/'
