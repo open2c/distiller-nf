@@ -132,9 +132,11 @@ LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK
 def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1) {
     srr_start_flag = (srr_start == 0) ? '' : (' --minSpotId ' + srr_start)
     srr_end_flag = (srr_end == -1) ? '' : (' --maxSpotId ' + srr_end)
-    sed_fwd_filter = "\"s/^@/\\v/\""
-    sed_rev_filter = "\"s/^\\v/@/\""
-    cmd = """fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
+    sed_fwd_filter = "\'2,\$s/^@\\(SRR.*length\\)/\\v\t\\1/\'"
+    sed_rev_filter = "\"s/^.\\?\\t/@/\""
+    cmd = """
+        HOME=`readlink -e ./`
+        fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
                        | sed ${sed_fwd_filter} \
                        | split -n r/2 -t\$'\\v' --numeric-suffixes=1 --suffix-length 1 \
                          --filter 'sed ${sed_rev_filter} | bgzip -c -@ ${threads} > \$FILE.fastq.gz' - \
@@ -179,6 +181,7 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
                      split -l ${chunk_lines} --numeric-suffixes=1 \
                      --filter 'bgzip -c -@ ${threads} > \$FILE.${side}.fastq.gz' - \
                      ${library}.${run}.
+                rm ${library}.${run}.${side}.fastq.gz 
             """
         }
     } else {
