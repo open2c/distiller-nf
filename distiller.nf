@@ -12,7 +12,7 @@ vim: syntax=groovy
 switch(params.compression_format) {
     case 'gz':
         suffix = 'gz'
-        decompress_command = 'pbgzip -cd -n 3'
+        decompress_command = 'bgzip -cd -@ 3'
         break
     case 'lz4':
         suffix = 'lz4'
@@ -20,7 +20,7 @@ switch(params.compression_format) {
         break
     default:
         suffix = 'gz'
-        decompress_command = 'pbgzip -cd -n 3'
+        decompress_command = 'bgzip -cd -@ 3'
         break
 }
 
@@ -37,6 +37,17 @@ String getIntermediateDir(intermediate_type) {
     new File(params.intermediates.get('base_dir', ''),
              params.intermediates.dirs.get(
                 intermediate_type, intermediate_type)).getCanonicalPath()
+}
+
+Boolean needsDownloading(query) {
+    return (
+        (query instanceof String) && (
+           query.startsWith('sra:') 
+           || query.startsWith('http://')
+           || query.startsWith('https://')
+           || query.startsWith('ftp://') 
+       )
+   )
 }
 
 String checkLeftRightChunk(left_chunk_fname,right_chunk_fname) {
@@ -82,238 +93,226 @@ Channel.from(
 // the Channel the location of Raw Data (fastqs):
 LIB_RUN_SOURCES = Channel.from(
     params.input.raw_reads_paths.collect{
-        k, v -> v.collect{k2, v2 -> [k,k2]+v2}}.sum())
+        k, v -> v.collect{k2, v2 -> (v2.size() == 1)
+                                    ? [k,k2]+v2+[null]
+                                    : [k,k2]+v2
+                         }
+        }.sum()
+    )
+
+
+LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK = Channel.create()
+LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK = Channel.create()
+LIB_RUN_SOURCES_LOCAL_NO_PROCESSING = Channel.create()
+LIB_RUN_SOURCES.choice(
+    LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK, 
+    LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK, 
+    LIB_RUN_SOURCES_LOCAL_NO_PROCESSING) {
+    a -> ( 
+        (   (params['map'].get('chunksize', 0) > 0)
+         || (params['input'].get('truncate_fastq_reads', 0) > 0)
+        ) ? ( ( needsDownloading(a[2]) || needsDownloading(a[3]) ) ? 0 : 1 ) : 2
+    )
+}
+
+LIB_RUN_SOURCES_LOCAL_NO_PROCESSING
+    .map{ v -> [v[0], v[1], file(v[2]), file(v[3])]}
+    .set{ LIB_RUN_SOURCES_LOCAL_NO_PROCESSING }
+
+LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK
+    .map{ v -> [v[0], v[1], file(v[2]), file(v[3])] }
+    .set{ LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK }
+
 
 /*
- * Download fastqs from SRA.
+ * Download and chunk fastqs.
  */
 
-LIB_RUN_SRAS = Channel.create()
-LIB_RUN_LOCAL_FASTQS = Channel.create()
-LIB_RUN_REMOTE_FASTQS = Channel.create()
-LIB_RUN_SOURCES.choice(LIB_RUN_SRAS, LIB_RUN_REMOTE_FASTQS, LIB_RUN_LOCAL_FASTQS) {
-    a -> a.size() == 3 ? 0 : ( (a[2].startsWith('http://')
-                               || a[2].startsWith('https://') 
-                               || a[2].startsWith('ftp://') 
-                               || a[3].startsWith('http://')
-                               || a[3].startsWith('https://')
-                               || a[3].startsWith('ftp://') 
-                               ) ? 1 : 2)
+
+def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1) {
+    srr_start_flag = (srr_start == 0) ? '' : (' --minSpotId ' + srr_start)
+    srr_end_flag = (srr_end == -1) ? '' : (' --maxSpotId ' + srr_end)
+    sed_fwd_filter = "\"s/^@/\\v/\""
+    sed_rev_filter = "\"s/^\\v/@/\""
+    cmd = """fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
+                       | sed ${sed_fwd_filter} \
+                       | split -n r/2 -t\$'\\v' --numeric-suffixes=1 --suffix-length 1 \
+                         --filter 'sed ${sed_rev_filter} | bgzip -c -@ ${threads} > \$FILE.fastq.gz' - \
+                         ${library}.${run}.  """
+    return cmd
+}
+
+
+def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0, 
+                           chunksize=0, threads=1) {
+    srr = ( sra_query =~ /SRR\d+/ )[0]
+    srrnum = srr.substring(3)
+
+    srr_start = 0
+    if ( sra_query.contains('start=') ) {
+        srr_start = ( sra_query =~ /start=(\d+)/ )[0][1] 
+    } 
+        
+    srr_end = -1
+    if ( truncate_fastq_reads ) {
+        srr_end = srr_start + truncate_fastq_reads
+    } else if ( sra_query.contains('end=') ) {
+        srr_end = (sra_query =~ /end=(\d+)/)[0][1]
     }
 
-process download_sra {
-    tag "$query"
-    storeDir getIntermediateDir('downloaded_fastqs')
- 
-    input:
-    set val(library), val(run), val(query) from LIB_RUN_SRAS
-     
-    output:
-    set library, run, 
-        "${library}.${run}.1.fastq.gz", 
-        "${library}.${run}.2.fastq.gz" into LIB_RUN_FASTQ_SRA
- 
-    script:
-    if( query == null) error "No files provided for library ${library}, run ${run}"
-
-    sra_cli = query.tokenize(':')[-1]
-    srr = sra_cli.contains('?') ? sra_cli.tokenize('\\?')[0] : sra_cli
-    srrnum = srr.substring(3)
-    srrnum_three_digs = srrnum.take(3)
-    sra_cli = srr + (sra_cli.contains('?') ? (
-        sra_cli.tokenize('\\?')[-1].tokenize('&').collect{
-            it.startsWith('start=') 
-            ? (' --minSpotId '+it.tokenize('=')[1])
-            : (it.startsWith('end=') ? (' --maxSpotId '+it.tokenize('=')[1]) : '')
-        }).join(' ') : '')
-
-    if( query.startsWith('sra:') ) {
-        if( query.contains('?') ) {
-            """
-            fastq-dump -F ${sra_cli} --split-files --gzip
-            mv ${srr}_1.fastq.gz ${library}.${run}.1.fastq.gz
-            mv ${srr}_2.fastq.gz ${library}.${run}.2.fastq.gz
-            """
-        }
-        else {
-            """ 
-            wget ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR${srrnum_three_digs}/${srr}/${srr}.sra -O ${srr}.sra
-            fastq-dump -F ${srr}.sra --split-files --gzip
-            mv ${srr}_1.fastq.gz ${library}.${run}.1.fastq.gz
-            mv ${srr}_2.fastq.gz ${library}.${run}.2.fastq.gz
-            rm ${srr}.sra 
-            """
-        }
+    if ((srr_start > 0) || (srr_end != -1)) {
+        cmd = fastqDumpCmd(srr, library, run, srr_start, srr_end)
     }
     else {
-        error "Runs can be defined with one line only with SRA"
+        cmd = """
+            wget ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR${srrnum.take(3)}/${srr}/${srr}.sra -O ${srr}.sra
+            ${fastqDumpCmd(srr+'.sra', library, run, 0, -1)}
+            rm ${srr}.sra
+        """
     }
+
+    chunk_lines = 4 * chunksize
+    if ( (truncate_fastq_reads == 0) && (chunk_lines > 0) ) {
+        for (side in 1..2) {
+            cmd += """
+                zcat ${library}.${run}.${side}.fastq.gz | \
+                     split -l ${chunk_lines} --numeric-suffixes=1 \
+                     --filter 'bgzip -c -@ ${threads} > \$FILE.${side}.fastq.gz' - \
+                     ${library}.${run}.
+            """
+        }
+    } else {
+        for (side in 1..2) {
+            cmd += """
+                mv ${library}.${run}.${side}.fastq.gz ${library}.${run}.0.${side}.fastq.gz
+            """
+        }
+    }
+
+    return cmd
 }
 
 
-process download_fastq {
+String fastqDownloadTruncateCmd(query, library, run, side, 
+                                truncate_fastq_reads=0, chunksize=0, threads=1) {
+    truncate_lines = 4 * truncate_fastq_reads
+    chunk_lines = 4 * chunksize
+
+    if (truncate_lines > 0) {
+        cmd = """head -n ${truncate_lines} < <(wget ${query} -O - | gunzip -cd )\
+                 | bgzip -c -@ ${threads} \
+                 > ${library}.${run}.0.${side}.fastq.gz
+              """
+    } else if (chunk_lines > 0) {
+        cmd = """wget ${query} -O - \
+                 | gunzip -cd \
+                 | split -l ${chunk_lines} --numeric-suffixes=1 \
+                 --filter 'bgzip -c -@ ${threads} > \$FILE.${side}.fastq.gz' - \
+                 ${library}.${run}.
+             """
+    } else {
+        cmd = "wget ${query} -O ${library}.${run}.0.${side}.fastq.gz"
+    }
+
+    return cmd
+}
+
+
+String fastqLocalTruncateChunkCmd(path, library, run, side, 
+                                  truncate_fastq_reads=0, chunksize=0, threads=1) {
+    truncate_lines = 4 * truncate_fastq_reads
+    chunk_lines = 4 * chunksize
+
+    if (truncate_lines > 0) {
+        cmd = """head -n ${truncate_lines} < <( zcat ${path} ) \
+                 | bgzip -c -@ ${threads} \
+                 >  ${library}.${run}.0.${side}.fastq.gz 
+        """
+    } else if (chunk_lines > 0) {
+        cmd = """
+            zcat ${path} | \
+            split -l ${chunk_lines} --numeric-suffixes=1 \
+            --filter 'bgzip -c -@ ${threads} > \$FILE.${side}.fastq.gz' - \
+            ${library}.${run}.
+        """
+    } else {
+        // this line should never be reached, b/c local files should only
+        // be processed if truncation or chunking is requested.
+        cmd = "mv ${path} ${library}.${run}.0.${side}.fastq.gz"
+    }
+
+    return cmd
+}
+
+
+process download_truncate_chunk_fastqs{
     tag "library:${library} run:${run}"
-    storeDir getIntermediateDir('downloaded_fastqs')
- 
+    storeDir getIntermediateDir('processed_fastqs')
+
     input:
-    set val(library), val(run), val(fastq1_url), val(fastq2_url) from LIB_RUN_REMOTE_FASTQS
+    set val(library), val(run), 
+        val(query1), val(query2) from LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK
      
-    output:
-    set library, run, 
-        "${library}.${run}.1.fastq.gz", 
-        "${library}.${run}.2.fastq.gz" into LIB_RUN_DOWNLOADED_FASTQS
- 
-    script:
-    if (fastq1_url == null) error "No files provided for library ${library}, run ${run}, side 1"
-    if (fastq2_url == null) error "No files provided for library ${library}, run ${run}, side 2"
-
-    download_cmd1 = ((fastq1_url.startsWith('http://') 
-                     || fastq1_url.startsWith('https://') 
-                     || fastq1_url.startsWith('ftp://')) 
-                    ? "wget ${fastq1_url} -O ${library}.${run}.1.fastq.gz"
-                    : "ln -s ${fastq1_url} ${library}.${run}.1.fastq.gz"
-                    )
-    download_cmd2 = ((fastq2_url.startsWith('http://') 
-                     || fastq2_url.startsWith('https://') 
-                     || fastq2_url.startsWith('ftp://')) 
-                    ? "wget ${fastq2_url} -O ${library}.${run}.2.fastq.gz"
-                    : "ln -s ${fastq2_url} ${library}.${run}.2.fastq.gz"
-                    )
-    """
-    ${download_cmd1}
-    ${download_cmd2}
-    """
-
-}
-
-LIB_RUN_LOCAL_FASTQS
-    .mix(LIB_RUN_FASTQ_SRA)
-    .mix(LIB_RUN_DOWNLOADED_FASTQS)
-    .map{ v -> [v[0], v[1], file(v[2]), file(v[3])] }
-    .set{ LIB_RUN_FASTQS }
-
-
-/* 
- * Truncate fastqs for quick semi-dry runs.
- */
-
-LIB_RUN_FASTQS_NO_TRUNC = Channel.create()
-LIB_RUN_FASTQS_FOR_TRUNC = Channel.create()
-LIB_RUN_FASTQS
-    .choice(LIB_RUN_FASTQS_NO_TRUNC, LIB_RUN_FASTQS_FOR_TRUNC) {
-    it -> params['input'].get('truncate_fastq_reads', 0) == 0 ? 0 : 1
-}
-
-process truncate_fastqs{
-    executor 'local'
-
-    input:
-    set val(library), val(run), file(fastq1), file(fastq2) from LIB_RUN_FASTQS_FOR_TRUNC
-
-    output:
-    set library, run, 
-        "${library}.${run}.truncated_${truncate_fastq_reads}.1.fastq.gz", 
-        "${library}.${run}.truncated_${truncate_fastq_reads}.2.fastq.gz" into LIB_RUN_FASTQS_TRUNCATED
-
-    script:
-    truncate_fastq_reads = params['input']['truncate_fastq_reads']
-    truncate_lines = 4 * params['input']['truncate_fastq_reads']
-
-    """
-    zcat ${fastq1} | head -n ${truncate_lines} | pbgzip -c -n ${task.cpus} > \
-        ${library}.${run}.truncated_${truncate_fastq_reads}.1.fastq.gz
-
-    zcat ${fastq2} | head -n ${truncate_lines} | pbgzip -c -n ${task.cpus} > \
-        ${library}.${run}.truncated_${truncate_fastq_reads}.2.fastq.gz
-    """
-}
-
-LIB_RUN_FASTQS_TRUNCATED
-    .mix(LIB_RUN_FASTQS_NO_TRUNC)
-    .set{LIB_RUN_FASTQS}
-
-
-/*
- * FastQC the input files.
- */
-
-LIB_RUN_FASTQS_FOR_QC = Channel.create()
-LIB_RUN_FASTQS
-    .tap(LIB_RUN_FASTQS_FOR_QC)
-    .set{LIB_RUN_FASTQS}
-
-LIB_RUN_FASTQS_FOR_QC
-    .filter { it -> params.get('do_fastqc', 'false').toBoolean() }
-    .map{ v -> [v[0], v[1], [[1,file(v[2])], [2,file(v[3])]]]} 
-    .flatMap{ 
-        vs -> vs[2].collect{ 
-            it -> [vs[0],
-                   vs[1], 
-                   it[0],
-                   it[1]] } }
-    .set {LIB_RUN_SIDE_FASTQS_FOR_QC}
-
-process fastqc{
-
-    tag "library:${library} run:${run} side:${side}"
-    publishDir path: getOutDir('fastqc'), mode:"copy"
-
-    input:
-    set val(library), val(run), val(side), file(fastq) from LIB_RUN_SIDE_FASTQS_FOR_QC
-
-    output:
-    set library, run, side,  
-        "${library}.${run}.${side}_fastqc.html", 
-        "${library}.${run}.${side}_fastqc.zip" into LIB_RUN_SIDE_FASTQCS
-
-    """
-    mkdir -p ./temp_fastqc/
-    ln -s \"\$(readlink -f ${fastq})\" ./temp_fastqc/${library}.${run}.${side}.fastq.gz
-    fastqc --threads ${task.cpus} -o ./ -f fastq ./temp_fastqc/${library}.${run}.${side}.fastq.gz
-    rm -r ./temp_fastqc/
-    """
-          
-}
-
-
-
-/* 
- * Chunk fastqs
- */ 
-
-LIB_RUN_FASTQS_NO_CHUNK = Channel.create()
-LIB_RUN_FASTQS_FOR_CHUNK = Channel.create()
-LIB_RUN_FASTQS
-    .choice(LIB_RUN_FASTQS_NO_CHUNK, LIB_RUN_FASTQS_FOR_CHUNK) {
-    it -> params['map'].get('chunksize', 0) == 0 ? 0 : 1
-}
-
-
-process chunk_fastqs {
-    tag "library:${library} run:${run}"
-    storeDir getIntermediateDir('fastq_chunks')
-
-
-    input:
-    set val(library), val(run),file(fastq1), file(fastq2) from LIB_RUN_FASTQS_FOR_CHUNK
-
     output:
     set library, run, 
         "${library}.${run}.*.1.fastq.gz", 
-        "${library}.${run}.*.2.fastq.gz" into LIB_RUN_FASTQ_CHUNKED
-
-
+        "${library}.${run}.*.2.fastq.gz" into LIB_RUN_CHUNK_DOWNLOADED_PROCESSED
+ 
     script:
-    chunksize_lines = 4 * params['map'].chunksize
-   
-    """
-    zcat ${fastq1} | split -l ${chunksize_lines} -d \
-        --filter 'pbgzip -c -n ${task.cpus} > \$FILE.1.fastq.gz' - \
-        ${library}.${run}.
 
-    zcat ${fastq2} | split -l ${chunksize_lines} -d \
-        --filter 'pbgzip -c -n ${task.cpus} > \$FILE.2.fastq.gz' - \
-        ${library}.${run}.
+    truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
+    chunksize = params['map'].get('chunksize', 0) 
+
+    if (query1.startsWith('sra:')) {
+        if ( !(( query2 == null) || (! query2.toBoolean())) ) {
+            error "Runs defined with SRA should only contain one line"
+        }
+        
+        download_truncate_chunk_cmd1 = sraDownloadTruncateCmd(
+            query1, library, run, truncate_fastq_reads, chunksize, task.cpus)
+
+        download_truncate_chunk_cmd2 = ""
+    } else {
+        download_truncate_chunk_cmd1 = fastqDownloadTruncateCmd(
+            query1, library, run, 1, truncate_fastq_reads, chunksize, task.cpus)
+
+        download_truncate_chunk_cmd2 = fastqDownloadTruncateCmd(
+            query2, library, run, 2, truncate_fastq_reads, chunksize, task.cpus)
+    }
+
+
+    """
+    ${download_truncate_chunk_cmd1}
+    ${download_truncate_chunk_cmd2}
+    """
+}
+
+process local_truncate_chunk_fastqs{
+    tag "library:${library} run:${run}"
+    storeDir getIntermediateDir('processed_fastqs')
+
+    input:
+    set val(library), val(run), 
+        file(fastq1), file(fastq2) from LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK
+     
+    output:
+    set library, run, 
+        "${library}.${run}.*.1.fastq.gz", 
+        "${library}.${run}.*.2.fastq.gz" into LIB_RUN_CHUNK_LOCAL_PROCESSED
+ 
+    script:
+
+    truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
+    chunksize = params['map'].get('chunksize', 0) 
+
+    truncate_chunk_cmd1 = fastqLocalTruncateChunkCmd(
+        fastq1, library, run, 1, truncate_fastq_reads, chunksize, task.cpus)
+    truncate_chunk_cmd2 = fastqLocalTruncateChunkCmd(
+        fastq2, library, run, 2, truncate_fastq_reads, chunksize, task.cpus)
+
+    """
+    ${truncate_chunk_cmd1}
+    ${truncate_chunk_cmd2}
     """
 }
 
@@ -321,26 +320,83 @@ process chunk_fastqs {
 // use new transpose operator 
 // to undo 'groupBy' of 'chunk_fastqs' process:
 // https://github.com/nextflow-io/nextflow/issues/440
-LIB_RUN_FASTQ_CHUNKED
-.transpose()
-.map{[it[0],
-      it[1],
-      // index of the chunk (checked for safety):
-      checkLeftRightChunk(it[2],it[3]),
-      it[2],
-      it[3]]}
-.set{ LIB_RUN_CHUNK_FASTQ }
+LIB_RUN_CHUNK_DOWNLOADED_PROCESSED
+    .transpose()
+    .map{[it[0],
+          it[1],
+          // index of the chunk (checked for safety):
+          checkLeftRightChunk(it[2],it[3]),
+          it[2],
+          it[3]]}
+    .set{ LIB_RUN_CHUNK_FASTQS }
+
+LIB_RUN_CHUNK_LOCAL_PROCESSED
+    .transpose()
+    .map{[it[0],
+          it[1],
+          // index of the chunk (checked for safety):
+          checkLeftRightChunk(it[2],it[3]),
+          it[2],
+          it[3]]}
+    .mix(LIB_RUN_CHUNK_FASTQS)
+    .set{ LIB_RUN_CHUNK_FASTQS }
 
 
-LIB_RUN_FASTQS_NO_CHUNK
-.map{[it[0],
-      it[1],
-      // index of the non-chunked is 0:
-      0,
-      it[2],
-      it[3]]}
-.mix(LIB_RUN_CHUNK_FASTQ)
-.set{LIB_RUN_CHUNK_FASTQ}
+LIB_RUN_SOURCES_LOCAL_NO_PROCESSING
+    .map{[it[0],
+          it[1],
+          // index of the non-chunked is 0:
+          0,
+          it[2],
+          it[3]]}
+    .mix(LIB_RUN_CHUNK_FASTQS)
+    .set{LIB_RUN_CHUNK_FASTQS}
+
+
+/*
+ * FastQC the input files.
+ */
+
+LIB_RUN_CHUNK_FASTQS_FOR_QC = Channel.create()
+LIB_RUN_CHUNK_FASTQS
+    .tap(LIB_RUN_CHUNK_FASTQS_FOR_QC)
+    .set{LIB_RUN_CHUNK_FASTQS}
+
+LIB_RUN_CHUNK_FASTQS_FOR_QC
+    .filter { it -> params.get('do_fastqc', 'false').toBoolean() }
+    .map{ v -> [v[0], v[1], v[2], [[1,file(v[3])], [2,file(v[4])]]]} 
+    .flatMap{ 
+        vs -> vs[3].collect{ 
+            it -> [vs[0],
+                   vs[1], 
+                   vs[2], 
+                   it[0],
+                   it[1]] } }
+    .set {LIB_RUN_CHUNK_SIDE_FASTQS_FOR_QC}
+
+process fastqc{
+
+    tag "library:${library} run:${run} chunk:${chunk} side:${side}"
+    publishDir path: getOutDir('fastqc'), mode:"copy"
+
+    input:
+    set val(library), val(run), val(chunk), val(side), 
+        file(fastq) from LIB_RUN_CHUNK_SIDE_FASTQS_FOR_QC
+
+    output:
+    set library, run, chunk, side,  
+        "${library}.${run}.${chunk}.${side}_fastqc.html", 
+        "${library}.${run}.${chunk}.${side}_fastqc.zip" into LIB_RUN_CHUNK_SIDE_QCS
+
+    """
+    mkdir -p ./temp_fastqc/
+    ln -s \"\$(readlink -f ${fastq})\" ./temp_fastqc/${library}.${run}.${chunk}.${side}.fastq.gz
+    fastqc --threads ${task.cpus} -o ./ -f fastq ./temp_fastqc/${library}.${run}.${chunk}.${side}.fastq.gz
+    rm -r ./temp_fastqc/
+    """
+          
+}
+
 
 
 BWA_INDEX = Channel.from([[
@@ -359,12 +415,12 @@ process map_parse_sort_chunks {
     storeDir getIntermediateDir('mapped_parsed_sorted_chunks')
  
     input:
-    set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQ
+    set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQS
     set val(bwa_index_base), file(bwa_index_files) from BWA_INDEX.first()
     file(chrom_sizes) from CHROM_SIZES_FOR_PARSING.first()
      
     output:
-    set library, run, 
+    set library, run, chunk,
         "${library}.${run}.${chunk}.pairsam.${suffix}",
         "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_PAIRSAMS
 
@@ -402,7 +458,7 @@ process map_parse_sort_chunks {
  */
 
 LIB_RUN_CHUNK_PAIRSAMS
-    .map {library, run, pairsam, bam -> tuple(library, pairsam)}
+    .map {library, run, chunk, pairsam, bam -> tuple(library, pairsam)}
     .groupTuple()
     .set {LIB_PAIRSAMS_TO_MERGE}
 
@@ -426,7 +482,7 @@ process merge_dedup_splitbam {
     dropsam = params['map'].get('drop_sam','false').toBoolean()
     merge_command = ( 
         isSingleFile(run_pairsam) ?
-        "${decompress_command}" : 
+        "${decompress_command} ${run_pairsam}" : 
         "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir ./tmp4sort"
     )
 

@@ -11,7 +11,7 @@ do_fastqc: False
 input:
     # truncate input fastqs to a small number of reads (e.g. 10000) for
     # semi-dry test runs.
-    truncate_fastq_reads: 39000
+#    truncate_fastq_reads: 3900
     raw_reads_paths:
         MATalpha_R1:
             lane1:
