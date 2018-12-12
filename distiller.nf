@@ -163,7 +163,11 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
     }
 
     if ((srr_start > 0) || (srr_end != -1)) {
-        cmd = fastqDumpCmd(srr, library, run, srr_start, srr_end)
+        cmd = """
+            ${fastqDumpCmd(srr, library, run, srr_start, srr_end)}
+            if [ -d ./ncbi ]; then rm -Rf ./ncbi; fi
+        """
+
     }
     else {
         cmd = """
