@@ -173,7 +173,7 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
     }
     else {
         cmd = """
-            wget ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR${srrnum.take(3)}/${srr}/${srr}.sra -O ${srr}.sra
+            wget ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR${srrnum.take(3)}/${srr}/${srr}.sra -qO ${srr}.sra
             ${fastqDumpCmd(srr+'.sra', library, run, 0, -1)}
             rm ${srr}.sra
         """
