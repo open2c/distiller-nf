@@ -108,11 +108,13 @@ LIB_RUN_SOURCES.choice(
     LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK, 
     LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK, 
     LIB_RUN_SOURCES_LOCAL_NO_PROCESSING) {
-    a -> ( 
-        (   (params['map'].get('chunksize', 0) > 0)
-         || (params['input'].get('truncate_fastq_reads', 0) > 0)
-        ) ? ( ( needsDownloading(a[2]) || needsDownloading(a[3]) ) ? 0 : 1 ) : 2
-    )
+    a -> ( ( needsDownloading(a[2]) || needsDownloading(a[3]) ) 
+            ? 0
+            : ( (    (params['map'].get('chunksize', 0) > 0)
+                  || (params['input'].get('truncate_fastq_reads', 0) > 0)
+                ) ? 1 : 2
+              )
+         )
 }
 
 LIB_RUN_SOURCES_LOCAL_NO_PROCESSING
