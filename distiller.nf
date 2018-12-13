@@ -100,7 +100,6 @@ LIB_RUN_SOURCES = Channel.from(
         }.sum()
     )
 
-
 LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK = Channel.create()
 LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK = Channel.create()
 LIB_RUN_SOURCES_LOCAL_NO_PROCESSING = Channel.create()
@@ -121,10 +120,10 @@ LIB_RUN_SOURCES_LOCAL_NO_PROCESSING
     .map{ v -> [v[0], v[1], file(v[2]), file(v[3])]}
     .set{ LIB_RUN_SOURCES_LOCAL_NO_PROCESSING }
 
+
 LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK
     .map{ v -> [v[0], v[1], file(v[2]), file(v[3])] }
     .set{ LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK }
-
 
 /*
  * Download and chunk fastqs.
@@ -132,32 +131,37 @@ LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK
 
 
 def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1) {
-    srr_start_flag = (srr_start == 0) ? '' : (' --minSpotId ' + srr_start)
-    srr_end_flag = (srr_end == -1) ? '' : (' --maxSpotId ' + srr_end)
-    sed_fwd_filter = "\'2,\$s/^@\\(SRR.*length\\)/\\v\t\\1/\'"
-    sed_rev_filter = "\"s/^.\\?\\t/@/\""
-    cmd = """
+    def srr_start_flag = (srr_start == 0) ? '' : (' --minSpotId ' + srr_start)
+    def srr_end_flag = (srr_end == -1) ? '' : (' --maxSpotId ' + srr_end)
+    def sed_fwd_filter = "\'2,\$s/^@\\(SRR.*length\\)/\\v\t\\1/\'"
+    def sed_rev_filter = "\"s/^.\\?\\t/@/\""
+
+    def cmd = """
         HOME=`readlink -e ./`
         fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
                        | sed ${sed_fwd_filter} \
                        | split -n r/2 -t\$'\\v' --numeric-suffixes=1 --suffix-length 1 \
                          --filter 'sed ${sed_rev_filter} | bgzip -c -@ ${threads} > \$FILE.fastq.gz' - \
                          ${library}.${run}.  """
+
     return cmd
 }
 
 
 def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0, 
                            chunksize=0, threads=1) {
-    srr = ( sra_query =~ /SRR\d+/ )[0]
-    srrnum = srr.substring(3)
+    def cmd = ""
 
-    srr_start = 0
+    def srr = ( sra_query =~ /SRR\d+/ )[0]
+    def srrnum = srr.substring(3)
+
+    def srr_start = 0
+    def srr_end = -1
+
     if ( sra_query.contains('start=') ) {
         srr_start = ( sra_query =~ /start=(\d+)/ )[0][1] 
     } 
         
-    srr_end = -1
     if ( truncate_fastq_reads ) {
         srr_end = srr_start + truncate_fastq_reads
     } else if ( sra_query.contains('end=') ) {
@@ -169,7 +173,6 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
             ${fastqDumpCmd(srr, library, run, srr_start, srr_end)}
             if [ -d ./ncbi ]; then rm -Rf ./ncbi; fi
         """
-
     }
     else {
         cmd = """
@@ -179,7 +182,7 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
         """
     }
 
-    chunk_lines = 4 * chunksize
+    def chunk_lines = 4 * chunksize
     if ( (truncate_fastq_reads == 0) && (chunk_lines > 0) ) {
         for (side in 1..2) {
             cmd += """
@@ -204,8 +207,10 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
 
 String fastqDownloadTruncateCmd(query, library, run, side, 
                                 truncate_fastq_reads=0, chunksize=0, threads=1) {
-    truncate_lines = 4 * truncate_fastq_reads
-    chunk_lines = 4 * chunksize
+    def cmd = ''
+
+    def truncate_lines = 4 * truncate_fastq_reads
+    def chunk_lines = 4 * chunksize
 
     if (truncate_lines > 0) {
         cmd = """head -n ${truncate_lines} < <(wget ${query} -O - | gunzip -cd )\
@@ -229,8 +234,11 @@ String fastqDownloadTruncateCmd(query, library, run, side,
 
 String fastqLocalTruncateChunkCmd(path, library, run, side, 
                                   truncate_fastq_reads=0, chunksize=0, threads=1) {
-    truncate_lines = 4 * truncate_fastq_reads
-    chunk_lines = 4 * chunksize
+    def cmd = ""
+
+    def truncate_lines = 4 * truncate_fastq_reads
+    def chunk_lines = 4 * chunksize
+
 
     if (truncate_lines > 0) {
         cmd = """head -n ${truncate_lines} < <( zcat ${path} ) \
@@ -268,24 +276,25 @@ process download_truncate_chunk_fastqs{
         "${library}.${run}.*.2.fastq.gz" into LIB_RUN_CHUNK_DOWNLOADED_PROCESSED
  
     script:
+    def truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
+    def chunksize = params['map'].get('chunksize', 0) 
 
-    truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
-    chunksize = params['map'].get('chunksize', 0) 
+    def download_truncate_chunk_cmd1 = ""
+    def download_truncate_chunk_cmd2 = ""
 
     if (query1.startsWith('sra:')) {
         if ( !(( query2 == null) || (! query2.toBoolean())) ) {
             error "Runs defined with SRA should only contain one line"
         }
         
-        download_truncate_chunk_cmd1 = sraDownloadTruncateCmd(
+        download_truncate_chunk_cmd1 += sraDownloadTruncateCmd(
             query1, library, run, truncate_fastq_reads, chunksize, task.cpus)
 
-        download_truncate_chunk_cmd2 = ""
     } else {
-        download_truncate_chunk_cmd1 = fastqDownloadTruncateCmd(
+        download_truncate_chunk_cmd1 += fastqDownloadTruncateCmd(
             query1, library, run, 1, truncate_fastq_reads, chunksize, task.cpus)
 
-        download_truncate_chunk_cmd2 = fastqDownloadTruncateCmd(
+        download_truncate_chunk_cmd2 += fastqDownloadTruncateCmd(
             query2, library, run, 2, truncate_fastq_reads, chunksize, task.cpus)
     }
 
@@ -311,12 +320,12 @@ process local_truncate_chunk_fastqs{
  
     script:
 
-    truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
-    chunksize = params['map'].get('chunksize', 0) 
+    def truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
+    def chunksize = params['map'].get('chunksize', 0) 
 
-    truncate_chunk_cmd1 = fastqLocalTruncateChunkCmd(
+    def truncate_chunk_cmd1 = fastqLocalTruncateChunkCmd(
         fastq1, library, run, 1, truncate_fastq_reads, chunksize, task.cpus)
-    truncate_chunk_cmd2 = fastqLocalTruncateChunkCmd(
+    def truncate_chunk_cmd2 = fastqLocalTruncateChunkCmd(
         fastq2, library, run, 2, truncate_fastq_reads, chunksize, task.cpus)
 
     """
@@ -435,11 +444,11 @@ process map_parse_sort_chunks {
 
     script:
     // additional mapping options or empty-line
-    mapping_options = params['map'].get('mapping_options','')
-    dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
-    dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
-    dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
-    keep_unparsed_bams_command = ( 
+    def mapping_options = params['map'].get('mapping_options','')
+    def dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
+    def dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
+    def dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
+    def keep_unparsed_bams_command = ( 
         params['map'].get('keep_unparsed_bams','false').toBoolean() ? 
         "| tee >(samtools view -bS > ${library}.${run}.${chunk}.bam)" : "" )
 
@@ -488,8 +497,8 @@ process merge_dedup_splitbam {
     set library, "${library}.dedup.stats" into LIB_DEDUP_STATS
  
     script:
-    dropsam = params['map'].get('drop_sam','false').toBoolean()
-    merge_command = ( 
+    def dropsam = params['map'].get('drop_sam','false').toBoolean()
+    def merge_command = ( 
         isSingleFile(run_pairsam) ?
         "${decompress_command} ${run_pairsam}" : 
         "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir ./tmp4sort"
@@ -569,9 +578,9 @@ process bin_library_pairs{
     script:
 
     // get any additional balancing options, if provided
-    balance_options = params['bin'].get('balance_options','')
+    def balance_options = params['bin'].get('balance_options','')
     // balancing command if it's requested
-    balance_command = ( params['bin'].get('balance','false').toBoolean() ? 
+    def balance_command = ( params['bin'].get('balance','false').toBoolean() ? 
         "cooler balance --nproc ${task.cpus} ${balance_options} ${library}.${res}.cool" : "" )
 
     """
@@ -617,10 +626,10 @@ process zoom_library_coolers{
     script:
 
     // additional balancing options as '--balance-args' or empty-line
-    balance_options = params['bin'].get('balance_options','')
+    def balance_options = params['bin'].get('balance_options','')
     balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
-    balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+    def balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
 
     """
     cooler zoomify \
@@ -658,9 +667,9 @@ process make_library_group_coolers{
     script:
 
     // get any additional balancing options, if provided
-    balance_options = params['bin'].get('balance_options','')
+    def balance_options = params['bin'].get('balance_options','')
     // balancing command if it's requested
-    balance_command = ( params['bin'].get('balance','false').toBoolean() ? 
+    def balance_command = ( params['bin'].get('balance','false').toBoolean() ? 
         "cooler balance --nproc ${task.cpus} ${balance_options} ${library_group}.${res}.cool" : "" )
 
     if( isSingleFile(coolers))
@@ -711,10 +720,10 @@ process zoom_library_group_coolers{
     script:
 
     // additional balancing options as '--balance-args' or empty-line
-    balance_options = params['bin'].get('balance_options','')
+    def balance_options = params['bin'].get('balance_options','')
     balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
-    balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+    def balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
 
     """
     cooler zoomify \
