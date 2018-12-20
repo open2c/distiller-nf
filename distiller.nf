@@ -9,6 +9,8 @@ vim: syntax=groovy
  * Miscellaneous code for the pipeline
  */
 
+MIN_RES = params['bin'].resolutions.collect { it as int }.min()
+
 switch(params.compression_format) {
     case 'gz':
         suffix = 'gz'
@@ -562,185 +564,102 @@ LIB_PAIRS_BAMS
  * Bin indexed .pairs into .cool matrices.
  */ 
 
-process bin_library_pairs{
-    tag "library:${library} resolution:${res}"
-    publishDir path: getOutDir('coolers_library'), mode:"copy", saveAs: {"${library}.${res}.cool"}
-
+process bin_zoom_library_pairs{
+    tag "library:${library}"
+    publishDir path: getOutDir('coolers_library'), mode:"copy"
 
     input:
         set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
-        each res from params['bin'].resolutions
         file(chrom_sizes) from CHROM_SIZES_FOR_BINNING.first()
 
     output:
-        set library, res, "${library}.${res}.cool" into LIB_RES_COOLERS, LIB_RES_COOLERS_TO_ZOOM
+        set library, "${library}.${MIN_RES}.cool", 
+            "${library}.${MIN_RES}.multires.cool" into LIB_COOLERS_ZOOMED
 
     script:
 
+    def res_str = params['bin'].resolutions.join(',')
     // get any additional balancing options, if provided
-    def balance_options = params['bin'].get('balance_options','')
-    // balancing command if it's requested
-    def balance_command = ( params['bin'].get('balance','false').toBoolean() ? 
-        "cooler balance --nproc ${task.cpus} ${balance_options} ${library}.${res}.cool" : "" )
-
-    """
-    cooler cload pairix \
-        --nproc ${task.cpus} \
-        --assembly ${params.input.genome.assembly} \
-        ${chrom_sizes}:${res} ${pairs_lib} ${library}.${res}.cool
-
-    ${balance_command}
-    """
-}
-
-
-/*
- * Zoomify .cool matrices with highest resolution for libraries (when requested).
- */ 
-
-// use library-cooler file with the highest resolution (smallest bin size) to zoomify:
-LIB_RES_COOLERS_TO_ZOOM
-    .map{ library,res,cool -> [library,[res,cool]] }
-    .groupTuple( by: 0, sort: {res,cool -> res} )
-    // after grouping by library get res_cool_list with smallest res (highest resoution)
-    .map{ library,res_cool_list -> [library,res_cool_list[0]].flatten() }
-    .set{LIB_RES_COOLERS_TO_ZOOM}
-
-
-process zoom_library_coolers{
-    tag "library:${library} zoom"
-    publishDir path: getOutDir('zoom_coolers_library'), mode:"copy", saveAs: {"${library}.${res}.multires.cool"}
-
-
-    input:
-        set val(library), val(res), file(cool) from LIB_RES_COOLERS_TO_ZOOM
-
-    output:
-        set library, res, "${library}.${res}.multires.cool" into LIB_RES_COOLERS_ZOOMED
-
-    // run ot only if requested
-    when:
-    params['bin'].get('zoomify','false').toBoolean()
-
-
-    script:
-
-    // additional balancing options as '--balance-args' or empty-line
     def balance_options = params['bin'].get('balance_options','')
     balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
     def balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
 
     """
+    ${decompress_command} ${pairs_lib} | cooler cload pairs \
+        -c1 2 -p1 3 -c2 4 -p2 5 \
+        --assembly ${params.input.genome.assembly} \
+        ${chrom_sizes}:${MIN_RES} - ${library}.${MIN_RES}.cool
+
     cooler zoomify \
         --nproc ${task.cpus} \
-        --out ${library}.${res}.multires.cool \
+        --out ${library}.${MIN_RES}.multires.cool \
+        --resolutions ${res_str} \
         ${balance_flag} \
-        ${cool}
+        ${library}.${MIN_RES}.cool
+
     """
 }
-
-
 
 /*
  * Merge .cool matrices for library groups.
  */ 
 
-
 LIBRARY_GROUPS_FOR_COOLER_MERGE
-    .combine(LIB_RES_COOLERS)
+    .combine(LIB_COOLERS_ZOOMED)
     .filter{ it[1].contains(it[2]) } 
-    .map {library_group, libraries, library, res, file -> tuple(library_group, res, file)}
+    .map {library_group, libraries, library, single_res_clr, multires_clr -> tuple(library_group, single_res_clr)}
     .groupTuple(by: [0, 1])
-    .set { LIBGROUP_RES_COOLERS_TO_MERGE }
+    .set { LIBGROUP_COOLERS_TO_MERGE }
 
-process make_library_group_coolers{
-    tag "library_group:${library_group} resolution:${res}"
-    publishDir path: getOutDir('coolers_library_group'), mode:"copy", saveAs: {"${library_group}.${res}.cool"}
+process merge_zoom_library_group_coolers{
+    tag "library_group:${library_group}"
+    publishDir path: getOutDir('coolers_library_group'), mode:"copy"
 
     input:
-        set val(library_group), val(res), file(coolers) from LIBGROUP_RES_COOLERS_TO_MERGE
+        set val(library_group), file(coolers) from LIBGROUP_COOLERS_TO_MERGE
 
     output:
-        set library_group, res, "${library_group}.${res}.cool" into LIBGROUP_RES_COOLERS, LIBGROUP_RES_COOLERS_TO_ZOOM
+        set library_group, "${library_group}.${MIN_RES}.cool", 
+            "${library_group}.${MIN_RES}.multires.cool" into LIBGROUP_RES_COOLERS
 
     script:
 
-    // get any additional balancing options, if provided
-    def balance_options = params['bin'].get('balance_options','')
-    // balancing command if it's requested
-    def balance_command = ( params['bin'].get('balance','false').toBoolean() ? 
-        "cooler balance --nproc ${task.cpus} ${balance_options} ${library_group}.${res}.cool" : "" )
-
-    if( isSingleFile(coolers))
-        // .cool is already balanced in such case:
-        """
-        ln -s \$(readlink -f ${coolers}) ${library_group}.${res}.cool
-        """
-    else
-        // 'weight' column is gone after merging, so balance if requested:
-        """
-        cooler merge ${library_group}.${res}.cool ${coolers}
-
-        ${balance_command}
-        """
-}
-
-
-
-/*
- * Zoomify .cool matrices with highest resolution for library groups (when requested).
- */ 
-
-// use library-group-cooler file with the highest resolution (smallest bin size) to zoomify:
-LIBGROUP_RES_COOLERS_TO_ZOOM
-    .map{ library_group,res,cool -> [library_group,[res,cool]] }
-    .groupTuple( by: 0, sort: {res,cool -> res})
-    // after grouping by library_group get res_cool_list with smallest bin (highest resoution)
-    .map{ library_group,res_cool_list -> [library_group,res_cool_list[0]].flatten() }
-    .set{LIBGROUP_RES_COOLERS_TO_ZOOM}
-
-
-process zoom_library_group_coolers{
-    tag "library_group:${library_group} zoom"
-    publishDir path: getOutDir('zoom_coolers_library_group'), mode:"copy", saveAs: {"${library_group}.${res}.multires.cool"}
-
-
-    input:
-        set val(library_group), val(res), file(cool) from LIBGROUP_RES_COOLERS_TO_ZOOM
-
-    output:
-        set library_group, res, "${library_group}.${res}.multires.cool" into LIBGROUP_RES_COOLERS_ZOOMED
-
-    // run ot only if requested
-    when:
-    params['bin'].get('zoomify','false').toBoolean()
-
-
-    script:
-
-    // additional balancing options as '--balance-args' or empty-line
+    def res_str = params['bin'].resolutions.join(',')
     def balance_options = params['bin'].get('balance_options','')
     balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
     def balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
 
-    """
+    def merge_command = ""
+    if( isSingleFile(coolers))
+        merge_command = """
+            ln -s \$(readlink -f ${coolers}) ${library_group}.${MIN_RES}.cool
+        """
+    else
+        merge_command = """
+            cooler merge ${library_group}.${MIN_RES}.cool ${coolers}
+        """
+
+    zoom_command = """
     cooler zoomify \
         --nproc ${task.cpus} \
-        --out ${library_group}.${res}.multires.cool \
+        --out ${library_group}.${MIN_RES}.multires.cool \
+        --resolutions ${res_str} \
         ${balance_flag} \
-        ${cool}
+        ${library_group}.${MIN_RES}.cool 
+    """
+
+    """
+    ${merge_command}
+    ${zoom_command}
     """
 }
-
-
 
 
 /*
  * Merge .stats for library groups
  */ 
-
 
 
 LIBRARY_GROUPS_FOR_STATS_MERGE

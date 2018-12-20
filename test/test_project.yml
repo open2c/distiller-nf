@@ -58,7 +58,7 @@ input:
         chrom_sizes_path: 'test/genome/sacCer3.reduced.chrom.sizes'
 
 map:
-    chunksize: 6000
+    #chunksize: 6000
     drop_sam: False
     drop_readid: False
     drop_seq: False
@@ -77,7 +77,7 @@ bin:
         - 100000
         - 40000
         # - 20000
-        # - 10000
+        - 10000
     balance: True
     balance_options: '--tol 0.05'
     zoomify: True
