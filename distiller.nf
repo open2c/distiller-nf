@@ -135,16 +135,14 @@ LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK
 def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1) {
     def srr_start_flag = (srr_start == 0) ? '' : (' --minSpotId ' + srr_start)
     def srr_end_flag = (srr_end == -1) ? '' : (' --maxSpotId ' + srr_end)
-    def sed_fwd_filter = "\'2,\$s/^@\\(SRR.*length\\)/\\v\t\\1/\'"
-    def sed_rev_filter = "\"s/^.\\?\\t/@/\""
 
     def cmd = """
         HOME=`readlink -e ./`
         fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
-                       | sed ${sed_fwd_filter} \
-                       | split -n r/2 -t\$'\\v' --numeric-suffixes=1 --suffix-length 1 \
-                         --filter 'sed ${sed_rev_filter} | bgzip -c -@ ${threads} > \$FILE.fastq.gz' - \
-                         ${library}.${run}.  """
+                       | pyfilesplit --lines 4 \
+                         >(bgzip -c -@{threads} > ${library}.${run}.1.fastq.gz) \
+                         >(bgzip -c -@{threads} > ${library}.${run}.2.fastq.gz) \
+                         | cat """
 
     return cmd
 }
