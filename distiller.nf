@@ -555,24 +555,29 @@ process merge_dedup_splitbam {
 }
 
 LIB_PAIRS_BAMS
-    .map {v -> tuple(v[0], v[1], v[2])}
-    .set {LIB_IDX_PAIRS}
+    .map {v -> tuple(v[0], v[1])}
+    .set {LIB_PAIRS}
+FILTERS = Channel.from(
+    params.bin.filters.collect{ name, expr -> [name, expr] } )
+FILTERS
+    .combine(LIB_PAIRS)
+    .set {LIB_FILTER_PAIRS}
 
 /*
  * Bin indexed .pairs into .cool matrices.
  */ 
 
 process bin_zoom_library_pairs{
-    tag "library:${library}"
+    tag "library:${library} filter:${filter_name}"
     publishDir path: getOutDir('coolers_library'), mode:"copy"
 
     input:
-        set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
+        set val(filter_name), val(filter_expr), val(library), file(pairs_lib) from LIB_FILTER_PAIRS
         file(chrom_sizes) from CHROM_SIZES_FOR_BINNING.first()
 
     output:
-        set library, "${library}.${MIN_RES}.cool", 
-            "${library}.${MIN_RES}.multires.cool" into LIB_COOLERS_ZOOMED
+        set library, filter_name, "${library}.${filter_name}.${MIN_RES}.cool", 
+            "${library}.${filter_name}.${MIN_RES}.multires.cool" into LIB_FILTER_COOLERS_ZOOMED
 
     script:
 
@@ -582,19 +587,20 @@ process bin_zoom_library_pairs{
     balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
     def balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+    def filter_command = (filter_expr == '' ? '' : "| pairtools select '${filter_expr}'")
 
     """
-    ${decompress_command} ${pairs_lib} | cooler cload pairs \
+    ${decompress_command} ${pairs_lib} ${filter_command} | cooler cload pairs \
         -c1 2 -p1 3 -c2 4 -p2 5 \
         --assembly ${params.input.genome.assembly} \
-        ${chrom_sizes}:${MIN_RES} - ${library}.${MIN_RES}.cool
+        ${chrom_sizes}:${MIN_RES} - ${library}.${filter_name}.${MIN_RES}.cool
 
     cooler zoomify \
         --nproc ${task.cpus} \
-        --out ${library}.${MIN_RES}.multires.cool \
+        --out ${library}.${filter_name}.${MIN_RES}.multires.cool \
         --resolutions ${res_str} \
         ${balance_flag} \
-        ${library}.${MIN_RES}.cool
+        ${library}.${filter_name}.${MIN_RES}.cool
 
     """
 }
@@ -604,22 +610,22 @@ process bin_zoom_library_pairs{
  */ 
 
 LIBRARY_GROUPS_FOR_COOLER_MERGE
-    .combine(LIB_COOLERS_ZOOMED)
+    .combine(LIB_FILTER_COOLERS_ZOOMED)
     .filter{ it[1].contains(it[2]) } 
-    .map {library_group, libraries, library, single_res_clr, multires_clr -> tuple(library_group, single_res_clr)}
+    .map {library_group, libraries, library, filter_name, single_res_clr, multires_clr -> tuple(library_group, filter_name, single_res_clr)}
     .groupTuple(by: [0, 1])
-    .set { LIBGROUP_COOLERS_TO_MERGE }
+    .set { LIBGROUP_FILTER_COOLERS_TO_MERGE }
 
 process merge_zoom_library_group_coolers{
-    tag "library_group:${library_group}"
+    tag "library_group:${library_group} filter:${filter_name}"
     publishDir path: getOutDir('coolers_library_group'), mode:"copy"
 
     input:
-        set val(library_group), file(coolers) from LIBGROUP_COOLERS_TO_MERGE
+        set val(library_group), val(filter_name), file(coolers) from LIBGROUP_FILTER_COOLERS_TO_MERGE
 
     output:
-        set library_group, "${library_group}.${MIN_RES}.cool", 
-            "${library_group}.${MIN_RES}.multires.cool" into LIBGROUP_RES_COOLERS
+        set library_group, filter_name, "${library_group}.${filter_name}.${MIN_RES}.cool", 
+            "${library_group}.${filter_name}.${MIN_RES}.multires.cool" into LIBGROUP_FILTER_RES_COOLERS
 
     script:
 
@@ -632,20 +638,20 @@ process merge_zoom_library_group_coolers{
     def merge_command = ""
     if( isSingleFile(coolers))
         merge_command = """
-            ln -s \$(readlink -f ${coolers}) ${library_group}.${MIN_RES}.cool
+            ln -s \$(readlink -f ${coolers}) ${library_group}.${filter_name}.${MIN_RES}.cool
         """
     else
         merge_command = """
-            cooler merge ${library_group}.${MIN_RES}.cool ${coolers}
+            cooler merge ${library_group}.${filter_name}.${MIN_RES}.cool ${coolers}
         """
 
     zoom_command = """
     cooler zoomify \
         --nproc ${task.cpus} \
-        --out ${library_group}.${MIN_RES}.multires.cool \
+        --out ${library_group}.${filter_name}.${MIN_RES}.multires.cool \
         --resolutions ${res_str} \
         ${balance_flag} \
-        ${library_group}.${MIN_RES}.cool 
+        ${library_group}.${filter_name}.${MIN_RES}.cool 
     """
 
     """

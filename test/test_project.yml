@@ -80,6 +80,9 @@ bin:
         - 10000
     balance: True
     balance_options: '--tol 0.05'
+    filters:
+        no_filter: ''
+        mapq_30: '(int(mapq1)>=30) and (int(mapq2)>=30)'
     zoomify: True
 
 intermediates:
