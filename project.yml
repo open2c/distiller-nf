@@ -128,13 +128,11 @@ bin:
         - 10000
         - 5000
         - 1000
-    balance: True
     # additional balancing parameters:
     # balance_options: ''
-    # enable zoomify option to produce .mcool files
-    # suitable for visualiztion in HiGlass
-    # zoomified for the smallest resolution (1000 in this case).
-    zoomify: True
+    filters:
+        no_filter: ''
+        mapq_30: '(int(mapq1)>=30) and (int(mapq2)>=30)'
 
 
 ########################################
