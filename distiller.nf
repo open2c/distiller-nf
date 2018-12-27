@@ -10,6 +10,7 @@ vim: syntax=groovy
  */
 
 MIN_RES = params['bin'].resolutions.collect { it as int }.min()
+ASSEMBLY_NAME = params['input'].genome.assembly_name
 
 switch(params.compression_format) {
     case 'gz':
@@ -30,15 +31,8 @@ boolean isSingleFile(object) {
     object instanceof Path  
 }
 
-String getOutDir(output_type) {
-    new File(params.output.get('base_dir', ''),
-             params.output.dirs.get(output_type, output_type)).getCanonicalPath()
-}
-
-String getIntermediateDir(intermediate_type) {
-    new File(params.intermediates.get('base_dir', ''),
-             params.intermediates.dirs.get(
-                intermediate_type, intermediate_type)).getCanonicalPath()
+String getOutputDir(output_type) {
+    new File(params.output.dirs.get(output_type, output_type)).getCanonicalPath()
 }
 
 Boolean needsDownloading(query) {
@@ -264,7 +258,7 @@ String fastqLocalTruncateChunkCmd(path, library, run, side,
 
 process download_truncate_chunk_fastqs{
     tag "library:${library} run:${run}"
-    storeDir getIntermediateDir('processed_fastqs')
+    storeDir getOutputDir('processed_fastqs')
 
     input:
     set val(library), val(run), 
@@ -307,7 +301,7 @@ process download_truncate_chunk_fastqs{
 
 process local_truncate_chunk_fastqs{
     tag "library:${library} run:${run}"
-    storeDir getIntermediateDir('processed_fastqs')
+    storeDir getOutputDir('processed_fastqs')
 
     input:
     set val(library), val(run), 
@@ -395,7 +389,7 @@ LIB_RUN_CHUNK_FASTQS_FOR_QC
 process fastqc{
 
     tag "library:${library} run:${run} chunk:${chunk} side:${side}"
-    publishDir path: getOutDir('fastqc'), mode:"copy"
+    storeDir getOutputDir('fastqc')
 
     input:
     set val(library), val(run), val(chunk), val(side), 
@@ -418,11 +412,11 @@ process fastqc{
 
 
 BWA_INDEX = Channel.from([[
-             params.input.genome.bwa_index_wildcard
+             params.input.genome.bwa_index_wildcard_path
                 .split('/')[-1]
                 .replaceAll('\\*$', "")
                 .replaceAll('\\.$', ""),
-             file(params.input.genome.bwa_index_wildcard),
+             file(params.input.genome.bwa_index_wildcard_path),
             ]])
 
 /*
@@ -430,7 +424,7 @@ BWA_INDEX = Channel.from([[
  */
 process map_parse_sort_chunks {
     tag "library:${library} run:${run} chunk:${chunk}"
-    storeDir getIntermediateDir('mapped_parsed_sorted_chunks')
+    storeDir getOutputDir('mapped_parsed_sorted_chunks')
  
     input:
     set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQS
@@ -439,29 +433,30 @@ process map_parse_sort_chunks {
      
     output:
     set library, run, chunk,
-        "${library}.${run}.${chunk}.pairsam.${suffix}",
-        "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_PAIRSAMS
+        "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix}",
+        "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam" into LIB_RUN_CHUNK_PAIRSAMS
 
     script:
     // additional mapping options or empty-line
     def mapping_options = params['map'].get('mapping_options','')
-    def dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
-    def dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
-    def dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
-    def keep_unparsed_bams_command = ( 
-        params['map'].get('keep_unparsed_bams','false').toBoolean() ? 
-        "| tee >(samtools view -bS > ${library}.${run}.${chunk}.bam)" : "" )
 
+    def dropsam_flag = params['parse'].get('make_pairsam','false').toBoolean() ? '' : '--drop-sam'
+    def dropreadid_flag = params['parse'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
+    def dropseq_flag = params['parse'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
+    def keep_unparsed_bams_command = ( 
+        params['parse'].get('keep_unparsed_bams','false').toBoolean() ? 
+        "| tee >(samtools view -bS > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam)" : "" )
+    def parsing_options = params['parse'].get('parsing_options','')
     """
     mkdir ./tmp4sort
-    touch ${library}.${run}.${chunk}.bam 
+    touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam 
     bwa mem -t ${task.cpus} ${mapping_options} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
         ${keep_unparsed_bams_command} \
         | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-            --add-columns mapq \
+            ${parsing_options} \
             -c ${chrom_sizes} \
             | pairtools sort --nproc ${task.cpus} \
-                             -o ${library}.${run}.${chunk}.pairsam.${suffix} \
+                             -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
                              --tmpdir ./tmp4sort \
             | cat
 
@@ -482,75 +477,76 @@ LIB_RUN_CHUNK_PAIRSAMS
 
 process merge_dedup_splitbam {
     tag "library:${library}"
-    storeDir getIntermediateDir('pairs_library')
+    storeDir getOutputDir('pairs_library')
  
     input:
     set val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_MERGE
      
     output:
-    set library, "${library}.nodups.pairs.gz", 
-                 "${library}.nodups.pairs.gz.px2", 
-                 "${library}.nodups.bam",
-                 "${library}.dups.pairs.gz", "${library}.dups.bam", 
-                 "${library}.unmapped.pairs.gz", 
-                 "${library}.unmapped.bam" into LIB_PAIRS_BAMS
-    set library, "${library}.dedup.stats" into LIB_DEDUP_STATS
+    set library, "${library}.${ASSEMBLY_NAME}.nodups.pairs.gz", 
+                 "${library}.${ASSEMBLY_NAME}.nodups.pairs.gz.px2", 
+                 "${library}.${ASSEMBLY_NAME}.nodups.bam",
+                 "${library}.${ASSEMBLY_NAME}.dups.pairs.gz", 
+                 "${library}.${ASSEMBLY_NAME}.dups.bam", 
+                 "${library}.${ASSEMBLY_NAME}.unmapped.pairs.gz", 
+                 "${library}.${ASSEMBLY_NAME}.unmapped.bam" into LIB_PAIRS_BAMS
+    set library, "${library}.${ASSEMBLY_NAME}.dedup.stats" into LIB_DEDUP_STATS
  
     script:
-    def dropsam = params['map'].get('drop_sam','false').toBoolean()
+    def make_pairsam = params['parse'].get('make_pairsam','false').toBoolean()
     def merge_command = ( 
         isSingleFile(run_pairsam) ?
         "${decompress_command} ${run_pairsam}" : 
         "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir ./tmp4sort"
     )
 
-    if(dropsam) 
+    if(make_pairsam) 
         """
         mkdir ./tmp4sort
 
         ${merge_command} | pairtools dedup \
-            --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
+            --max-mismatch ${params.dedup.max_mismatch_bp} \
             --mark-dups \
-            --output ${library}.nodups.pairs.gz \
-            --output-unmapped ${library}.unmapped.pairs.gz \
-            --output-dups ${library}.dups.pairs.gz \
-            --output-stats ${library}.dedup.stats \
+            --output \
+                >( pairtools split \
+                    --output-pairs ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz \
+                    --output-sam ${library}.${ASSEMBLY_NAME}.nodups.bam \
+                 ) \
+            --output-unmapped \
+                >( pairtools split \
+                    --output-pairs ${library}.${ASSEMBLY_NAME}.unmapped.pairs.gz \
+                    --output-sam ${library}.${ASSEMBLY_NAME}.unmapped.bam \
+                 ) \
+            --output-dups \
+                >( pairtools split \
+                    --output-pairs ${library}.${ASSEMBLY_NAME}.dups.pairs.gz \
+                    --output-sam ${library}.${ASSEMBLY_NAME}.dups.bam \
+                 ) \
+            --output-stats ${library}.${ASSEMBLY_NAME}.dedup.stats \
             | cat
 
-        touch ${library}.unmapped.bam
-        touch ${library}.nodups.bam
-        touch ${library}.dups.bam
-
         rm -rf ./tmp4sort
-        pairix ${library}.nodups.pairs.gz
+        pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
         """
     else 
         """
         mkdir ./tmp4sort
 
         ${merge_command} | pairtools dedup \
-            --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
+            --max-mismatch ${params.dedup.max_mismatch_bp} \
             --mark-dups \
-            --output \
-                >( pairtools split \
-                    --output-pairs ${library}.nodups.pairs.gz \
-                    --output-sam ${library}.nodups.bam \
-                 ) \
-            --output-unmapped \
-                >( pairtools split \
-                    --output-pairs ${library}.unmapped.pairs.gz \
-                    --output-sam ${library}.unmapped.bam \
-                 ) \
-            --output-dups \
-                >( pairtools split \
-                    --output-pairs ${library}.dups.pairs.gz \
-                    --output-sam ${library}.dups.bam \
-                 ) \
-            --output-stats ${library}.dedup.stats \
+            --output ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz \
+            --output-unmapped ${library}.${ASSEMBLY_NAME}.unmapped.pairs.gz \
+            --output-dups ${library}.${ASSEMBLY_NAME}.dups.pairs.gz \
+            --output-stats ${library}.${ASSEMBLY_NAME}.dedup.stats \
             | cat
 
+        touch ${library}.${ASSEMBLY_NAME}.unmapped.bam
+        touch ${library}.${ASSEMBLY_NAME}.nodups.bam
+        touch ${library}.${ASSEMBLY_NAME}.dups.bam
+
         rm -rf ./tmp4sort
-        pairix ${library}.nodups.pairs.gz
+        pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
         """
 }
 
@@ -569,15 +565,15 @@ FILTERS
 
 process bin_zoom_library_pairs{
     tag "library:${library} filter:${filter_name}"
-    publishDir path: getOutDir('coolers_library'), mode:"copy"
+    storeDir getOutputDir('coolers_library')
 
     input:
         set val(filter_name), val(filter_expr), val(library), file(pairs_lib) from LIB_FILTER_PAIRS
         file(chrom_sizes) from CHROM_SIZES_FOR_BINNING.first()
 
     output:
-        set library, filter_name, "${library}.${filter_name}.${MIN_RES}.cool", 
-            "${library}.${filter_name}.${MIN_RES}.multires.cool" into LIB_FILTER_COOLERS_ZOOMED
+        set library, filter_name, "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool", 
+            "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.multires.cool" into LIB_FILTER_COOLERS_ZOOMED
 
     script:
 
@@ -586,21 +582,21 @@ process bin_zoom_library_pairs{
     def balance_options = params['bin'].get('balance_options','')
     balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
-    def balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+    def balance_flag = ( params['bin'].get('balance','true').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
     def filter_command = (filter_expr == '' ? '' : "| pairtools select '${filter_expr}'")
 
     """
     ${decompress_command} ${pairs_lib} ${filter_command} | cooler cload pairs \
         -c1 2 -p1 3 -c2 4 -p2 5 \
-        --assembly ${params.input.genome.assembly} \
-        ${chrom_sizes}:${MIN_RES} - ${library}.${filter_name}.${MIN_RES}.cool
+        --assembly ${ASSEMBLY_NAME} \
+        ${chrom_sizes}:${MIN_RES} - ${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool
 
     cooler zoomify \
         --nproc ${task.cpus} \
-        --out ${library}.${filter_name}.${MIN_RES}.multires.cool \
+        --out ${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.multires.cool \
         --resolutions ${res_str} \
         ${balance_flag} \
-        ${library}.${filter_name}.${MIN_RES}.cool
+        ${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool
 
     """
 }
@@ -618,14 +614,15 @@ LIBRARY_GROUPS_FOR_COOLER_MERGE
 
 process merge_zoom_library_group_coolers{
     tag "library_group:${library_group} filter:${filter_name}"
-    publishDir path: getOutDir('coolers_library_group'), mode:"copy"
+    publishDir path: getOutputDir('coolers_library_group'), mode: "copy"
 
     input:
         set val(library_group), val(filter_name), file(coolers) from LIBGROUP_FILTER_COOLERS_TO_MERGE
 
     output:
-        set library_group, filter_name, "${library_group}.${filter_name}.${MIN_RES}.cool", 
-            "${library_group}.${filter_name}.${MIN_RES}.multires.cool" into LIBGROUP_FILTER_RES_COOLERS
+        set library_group, filter_name, 
+            "${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool", 
+            "${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.multires.cool" into LIBGROUP_FILTER_RES_COOLERS
 
     script:
 
@@ -638,20 +635,20 @@ process merge_zoom_library_group_coolers{
     def merge_command = ""
     if( isSingleFile(coolers))
         merge_command = """
-            ln -s \$(readlink -f ${coolers}) ${library_group}.${filter_name}.${MIN_RES}.cool
+            ln -s \$(readlink -f ${coolers}) ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool
         """
     else
         merge_command = """
-            cooler merge ${library_group}.${filter_name}.${MIN_RES}.cool ${coolers}
+            cooler merge ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool ${coolers}
         """
 
     zoom_command = """
     cooler zoomify \
         --nproc ${task.cpus} \
-        --out ${library_group}.${filter_name}.${MIN_RES}.multires.cool \
+        --out ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.multires.cool \
         --resolutions ${res_str} \
         ${balance_flag} \
-        ${library_group}.${filter_name}.${MIN_RES}.cool 
+        ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool 
     """
 
     """
@@ -676,22 +673,22 @@ LIBRARY_GROUPS_FOR_STATS_MERGE
 
 process merge_stats_libraries_into_groups {
     tag "library_group:${library_group}"
-    publishDir path: getOutDir('stats_library_group'), pattern: "*.stats", mode:"copy"
+    publishDir path: getOutputDir('stats_library_group'), mode: "copy"
  
     input:
     set val(library_group), file(stats) from LIBGROUP_STATS_TO_MERGE
      
     output:
-    set library_group, "${library_group}.stats" into LIBGROUP_STATS
+    set library_group, "${library_group}.${ASSEMBLY_NAME}.stats" into LIBGROUP_STATS
 
     script:
     if( isSingleFile(stats))
         """
-        ln -s ${stats} ${library_group}.stats
+        ln -s ${stats} ${library_group}.${ASSEMBLY_NAME}.stats
         """
     else
         """
-        pairtools stats --merge ${stats} -o ${library_group}.stats
+        pairtools stats --merge ${stats} -o ${library_group}.${ASSEMBLY_NAME}.stats
         """
 }
 

@@ -1,6 +1,16 @@
-do_fastqc: False
-    
+#########################################
+# THIS IS A TYPICAL project.yml TEMPLATE
+# most of the settings present here
+# are GO for mapping production data
+# but nonetheless user must consider
+# carefully every presented option
+#########################################
 
+
+    
+#######################################
+# provide paths to your raw input data (fastq-s):
+#######################################
 # Fastqs can be provided as:
 # -- a pairs of relative/absolute paths
 # -- sra:<SRA_NUMBER>, optionally followed by the indices of the first and
@@ -11,7 +21,6 @@ do_fastqc: False
 input:
     # truncate input fastqs to a small number of reads (e.g. 10000) for
     # semi-dry test runs.
-#    truncate_fastq_reads: 3900
     raw_reads_paths:
         MATalpha_R1:
             lane1:
@@ -39,6 +48,10 @@ input:
                 - ./test/fastq/MATa_R2/lane1/SRR2601851_1.fastq.gz
                 - ./test/fastq/MATa_R2/lane1/SRR2601851_2.fastq.gz
 
+
+    # independent libraries can be combined together
+    # on the level of binned-data (.cool files)
+    # describe your groupings of choice here:
     library_groups:
         MATalpha:
             - MATalpha_R1
@@ -52,24 +65,85 @@ input:
             - MATalpha_R1
             - MATalpha_R2
 
+
+    # Truncate input fastqs to a small number of reads (e.g. 10000) for
+    # semi-dry test runs.
+    # NOTE: when the inputs are specified as an SRA number, only this number of
+    # reads is downloaded!
+#    truncate_fastq_reads: 3900
+
+    # Specify a reference genome to align sequenced reads.
+    # Provide the genome assembly name, a wildcard path to the BWA index files
+    # of the reference genome, and a tab-separated table with contig sizes 
+    # (known as "chrom.sizes"). The latter is used to specify the subset and the 
+    # order of contigs in a resulting contact map.
     genome:
-        assembly: 'sacCer3'
-        bwa_index_wildcard: 'test/genome/sacCer3.fa.gz.*'
+        assembly_name: 'sacCer3'
+        bwa_index_wildcard_path: 'test/genome/sacCer3.fa.gz.*'
         chrom_sizes_path: 'test/genome/sacCer3.reduced.chrom.sizes'
 
+# Choose if you want to do FastQC of the input files:
+do_fastqc: False
+
+# Control how reads are mapped to the reference genomes.
 map:
-    #chunksize: 6000
-    drop_sam: False
-    drop_readid: False
-    drop_seq: False
-    keep_unparsed_bams: True
-    # just an innocent BWA MEM option to test
+    # If 'chunksize' is provided, each input file gets split into multiple chunks,
+    # each mapped separately. Useful for mapping on clusters with many 
+    # relatively weak nodes.
+    # The optimal chunk size is defined by the balance between mapping and merging.
+    # Smaller chunks (~30M) are better for clusters with many weak nodes,
+    # however, having >~10 chunks per run slow down merging.
+    # chunksize: 6000
+    
+    # Specify extra BWA mapping options.
     mapping_options: '-v 3'
 
-filter:
-    pcr_dups_max_mismatch_bp: 3
+# Control how read alignments are converted ('parsed') into Hi-C pairs.
+parse:
+    # If 'make_pairsam' is True, parsed Hi-C pairs will store complete 
+    # alignment records in the SAM format (the resulting hybrid between the
+    # .pairs and .sam formats is called '.pairsam'). Such files can be useful for
+    # thorough investigation of Hi-C data. Downstream of parsing, pairsams
+    # are split into .pairs and .bam, and .bam alignments are tagged with 
+    # Hi-C related information. 'make_pairsam' roughly doubles the storage 
+    # and I/O requirements and should be used only when absolutely needed.
+    # NOTE: when 'make_pairsam' is False, the initial output of parsing is still
+    # called '.pairsam' despite missing SAM alignments, for technical reasons.
+    make_pairsam: True
 
+    # When 'make_pairsam' is True, enabling 'drop_readid' and 'drop_seq' erases
+    # readIDs and sequences/Phred scores from the SAM alignments in .pairsam and
+    # .bam output files. Enable to make lightweight .pairsam/.bam output.
+    # NOTE: when 'make_pairsam' is False, 'drop_readid' and 'drop_seq' are 
+    # ignored.
+    drop_readid: False
+    drop_seq: False
+    
+    # When 'keep_unparsed_bams' is True, distiller preserves the _immediate_
+    # output of bwa in a .bam format. Could be used as a faster alternative 
+    # to 'make_pairsam' when alignments are needed, but tagging them with Hi-C
+    # related information is not necessary.
+    keep_unparsed_bams: True
+    
+    # Pass extra options to pairtools parse, on top of the ones specified by
+    # flags 'make_pairsam', 'drop_readid', 'drop_seq'. The default value 
+    # enables storing MAPQ scores in the .pairsam/.pairs output, which are
+    # used later for filtering/binning.
+    parsing_options: '--add-columns mapq'
+
+# Control how PCR/optical duplicates are detected in the data.
+dedup:
+    # PCR/optical duplicates are detected as Hi-C pairs with matching locations
+    # on both sides. 'max_mismatch_bp' controls the maximal allowed mismatch in 
+    # mapped locations on either side for two pairs to be still considered as
+    # duplicates.
+    max_mismatch_bp: 3
+
+# Control how Hi-C pairs are binned into contact maps, stored in .cool files.
 bin:
+    # Specify which resolutions should be included in the multi-resolution .cool file.
+    # The lowest (base) resolution _must_ be the common denominator of all other
+    # resolutions.
     resolutions:
         - 1000000
         - 400000
@@ -78,32 +152,32 @@ bin:
         - 40000
         # - 20000
         - 10000
-    balance: True
+    # Specify if the multi-resolution .cool output files should be balanced.
+    balance: true
+
+    # Pass additional parameters to cooler balance:
     balance_options: '--tol 0.05'
-    filters:
+
+    # Specify additional filters applied to pairs during binning.
+    # Multiple filters are allowed; for each filter, all pairs satisfying the
+    # given filter expression will be binned into a separate cooler.
+    # Filters are specified using the following syntax:
+    # {filter_name}: '{a valid Python expression}'
+    filters: 
         no_filter: ''
         mapq_30: '(int(mapq1)>=30) and (int(mapq2)>=30)'
-    zoomify: True
 
-intermediates:
-    base_dir: 'results/intermediates/'
-    dirs:
-        downloaded_fastqs: 'downloaded_fastqs/'
-        fastq_chunks: 'fastq_chunks'
-        mapped_parsed_sorted_chunks: 'mapped_parsed_sorted_chunks'
-        pairsam_library: 'pairs_library'
 
+########################################
+# folder structure for storing results
+########################################
 output:
-    base_dir: 'results/output/'
     dirs:
-        fastqc: 'fastqc/'
-        stats_chunk: 'stats/chunk/'
-        stats_run: 'stats/run/'
-        stats_library: 'stats/library/'
-        stats_library_group: 'stats/library_group/'
-        coolers_library: 'coolers/library/'
-        coolers_library_group: 'coolers/library_group/'
-        zoom_coolers_library: 'coolers/library_zoom/'
-        zoom_coolers_library_group: 'coolers/library_group_zoom/'
-        bams_library: 'bams/library/'
+        processed_fastqs: 'results/processed_fastqs/'
+        mapped_parsed_sorted_chunks: 'results/mapped_parsed_sorted_chunks'
+        fastqc: 'results/fastqc/'
+        pairs_library: 'results/pairs_library'
+        coolers_library: 'results/coolers_library/'
+        coolers_library_group: 'results/coolers_library_group/'
+        stats_library_group: 'results/stats_library_group/'
 
