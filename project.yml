@@ -6,6 +6,13 @@
 # carefully every presented option
 #########################################
 
+#########################################
+# When commmenting parameters out, make sure 
+# that each section still has at least one 
+# uncommented parameter, otherwise it 
+# will not get properly parsed.
+#########################################
+
 
     
 #######################################
@@ -94,16 +101,16 @@ do_fastqc: False
 
 # Control how reads are mapped to the reference genomes.
 map:
-    # If 'chunksize' is provided, each input file gets split into multiple chunks,
+    # If 'chunksize' is non-zero, each input file gets split into multiple chunks,
     # each mapped separately. Useful for mapping on clusters with many 
     # relatively weak nodes.
     # The optimal chunk size is defined by the balance between mapping and merging.
     # Smaller chunks (~30M) are better for clusters with many weak nodes,
     # however, having >~10 chunks per run slow down merging.
-    # chunksize: 100000000
+    chunksize: 0
     
     # Specify extra BWA mapping options.
-    # mapping_options: ''
+    mapping_options: ''
 
 # Control how read alignments are converted ('parsed') into Hi-C pairs.
 parse:
