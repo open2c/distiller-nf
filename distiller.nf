@@ -401,10 +401,10 @@ process fastqc{
         "${library}.${run}.${chunk}.${side}_fastqc.zip" into LIB_RUN_CHUNK_SIDE_QCS
 
     """
-    mkdir -p ./temp_fastqc/
+    TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
     ln -s \"\$(readlink -f ${fastq})\" ./temp_fastqc/${library}.${run}.${chunk}.${side}.fastq.gz
     fastqc --threads ${task.cpus} -o ./ -f fastq ./temp_fastqc/${library}.${run}.${chunk}.${side}.fastq.gz
-    rm -r ./temp_fastqc/
+    rm -r \$TASK_TMP_DIR
     """
           
 }
@@ -448,7 +448,7 @@ process map_parse_sort_chunks {
         "| tee >(samtools view -bS > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam)" : "" )
     def parsing_options = params['parse'].get('parsing_options','')
     """
-    mkdir ./tmp4sort
+    TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
     touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam 
     bwa mem -t ${task.cpus} ${mapping_options} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
         ${keep_unparsed_bams_command} \
@@ -457,10 +457,10 @@ process map_parse_sort_chunks {
             -c ${chrom_sizes} \
             | pairtools sort --nproc ${task.cpus} \
                              -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
-                             --tmpdir ./tmp4sort \
+                             --tmpdir \$TASK_TMP_DIR \
             | cat
 
-    rm -rf ./tmp4sort
+    rm -rf \$TASK_TMP_DIR
 
     """        
 
@@ -497,12 +497,12 @@ process merge_dedup_splitbam {
     def merge_command = ( 
         isSingleFile(run_pairsam) ?
         "${decompress_command} ${run_pairsam}" : 
-        "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir ./tmp4sort"
+        "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir \$TASK_TMP_DIR"
     )
 
     if(make_pairsam) 
         """
-        mkdir ./tmp4sort
+        TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
 
         ${merge_command} | pairtools dedup \
             --max-mismatch ${params.dedup.max_mismatch_bp} \
@@ -525,12 +525,12 @@ process merge_dedup_splitbam {
             --output-stats ${library}.${ASSEMBLY_NAME}.dedup.stats \
             | cat
 
-        rm -rf ./tmp4sort
+        rm -rf \$TASK_TMP_DIR
         pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
         """
     else 
         """
-        mkdir ./tmp4sort
+        TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
 
         ${merge_command} | pairtools dedup \
             --max-mismatch ${params.dedup.max_mismatch_bp} \
@@ -545,7 +545,7 @@ process merge_dedup_splitbam {
         touch ${library}.${ASSEMBLY_NAME}.nodups.bam
         touch ${library}.${ASSEMBLY_NAME}.dups.bam
 
-        rm -rf ./tmp4sort
+        rm -rf \$TASK_TMP_DIR
         pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
         """
 }
