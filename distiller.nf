@@ -573,7 +573,7 @@ process bin_zoom_library_pairs{
 
     output:
         set library, filter_name, "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool", 
-            "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.multires.cool" into LIB_FILTER_COOLERS_ZOOMED
+            "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool" into LIB_FILTER_COOLERS_ZOOMED
 
     script:
 
@@ -593,7 +593,7 @@ process bin_zoom_library_pairs{
 
     cooler zoomify \
         --nproc ${task.cpus} \
-        --out ${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.multires.cool \
+        --out ${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool \
         --resolutions ${res_str} \
         ${balance_flag} \
         ${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool
@@ -622,7 +622,7 @@ process merge_zoom_library_group_coolers{
     output:
         set library_group, filter_name, 
             "${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool", 
-            "${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.multires.cool" into LIBGROUP_FILTER_RES_COOLERS
+            "${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool" into LIBGROUP_FILTER_RES_COOLERS
 
     script:
 
@@ -645,7 +645,7 @@ process merge_zoom_library_group_coolers{
     zoom_command = """
     cooler zoomify \
         --nproc ${task.cpus} \
-        --out ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.multires.cool \
+        --out ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool \
         --resolutions ${res_str} \
         ${balance_flag} \
         ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool 
