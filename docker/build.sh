@@ -14,3 +14,5 @@ function cleanup {
 trap cleanup EXIT
 
 docker build -t $USERNAME/$IMAGE:latest . 
+docker run -it mirnylab/distiller_env:latest apt list > ./apt.list
+docker run -it mirnylab/distiller_env:latest conda list > ./conda.list

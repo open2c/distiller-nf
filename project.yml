@@ -182,7 +182,7 @@ bin:
     # {filter_name}: '{a valid Python expression}'
     filters: 
         no_filter: ''
-        mapq_30: '(int(mapq1)>=30) and (int(mapq2)>=30)'
+        mapq_30: '(mapq1>=30) and (mapq2>=30)'
 
 ########################################
 # folder structure for storing results
