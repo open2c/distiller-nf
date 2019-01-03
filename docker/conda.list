@@ -5,7 +5,7 @@ asciitree                 0.3.3                     <pip>
 asn1crypto                0.24.0                py36_1003    conda-forge
 biopython                 1.73                      <pip>
 blas                      1.1                    openblas    conda-forge
-bokeh                     1.0.2                 py36_1000    conda-forge
+bokeh                     1.0.3                 py36_1000    conda-forge
 bwa                       0.7.17               ha92aebf_3    bioconda
 bzip2                     1.0.6                h470a237_2    conda-forge
 ca-certificates           2018.11.29           ha4d7672_0    conda-forge
@@ -16,7 +16,7 @@ click                     7.0                        py_0    conda-forge
 cloudpickle               0.6.1                      py_0    conda-forge
 conda                     4.5.12                py36_1000    conda-forge
 conda-env                 2.6.0                         1  
-cooler                    0.8.0                     <pip>
+cooler                    0.8.1                     <pip>
 coreutils                 8.30                 h470a237_0    conda-forge
 cryptography              2.3.1            py36hdffb7b8_0    conda-forge
 cryptography-vectors      2.3.1                 py36_1000    conda-forge
@@ -72,7 +72,7 @@ parallel                  20181022                      0    conda-forge
 partd                     0.3.9                      py_0    conda-forge
 pbgzip                    2016.08.04           he4cf2ce_0    bioconda
 perl                      5.26.2               h470a237_0    conda-forge
-pillow                    5.3.0            py36hc736899_0    conda-forge
+pillow                    5.4.0            py36hc736899_0    conda-forge
 pip                       18.1                  py36_1000    conda-forge
 psutil                    5.4.8            py36h470a237_0    conda-forge
 pycosat                   0.6.3            py36h470a237_1    conda-forge

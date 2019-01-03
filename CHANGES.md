@@ -1,3 +1,7 @@
+### 0.3.1 (2019-01-03) ###
+
+* bugfixes in cooler, fastqc task and apt.list
+
 ### 0.3.0 (2019-01-02) ###
 
 A major update of the pipeline and the config syntax.
