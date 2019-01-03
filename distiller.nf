@@ -405,8 +405,8 @@ process fastqc{
 
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
-    ln -s \"\$(readlink -f ${fastq})\" ./temp_fastqc/${library}.${run}.${chunk}.${side}.fastq.gz
-    fastqc --threads ${task.cpus} -o ./ -f fastq ./temp_fastqc/${library}.${run}.${chunk}.${side}.fastq.gz
+    ln -s \"\$(readlink -f ${fastq})\" \$TASK_TMP_DIR/${library}.${run}.${chunk}.${side}.fastq.gz
+    fastqc --threads ${task.cpus} -o ./ -f fastq \$TASK_TMP_DIR/${library}.${run}.${chunk}.${side}.fastq.gz
     rm -r \$TASK_TMP_DIR
     """
           
