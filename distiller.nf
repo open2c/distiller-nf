@@ -450,9 +450,14 @@ process map_parse_sort_chunks {
         params['parse'].get('keep_unparsed_bams','false').toBoolean() ? 
         "| tee >(samtools view -bS > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam)" : "" )
     def parsing_options = params['parse'].get('parsing_options','')
-    def bwa_threads = Math.max(1, 
-                          ((((task.cpus as int)*0.6).round()) as int))
-    def sorting_threads = Math.max(1, (task.cpus as int)-bwa_threads)
+
+    //def bwa_threads = Math.max(1, 
+    //                      ((((task.cpus as int)*0.6).round()) as int))
+    //def sorting_threads = Math.max(1, (task.cpus as int)-bwa_threads)
+    // Since bwa and sort operate on the same pipe, they do not use their 
+    // cores simultaneously and it is safe to give both of them all cores.
+    def bwa_threads = (task.cpus as int)
+    def sorting_threads = (task.cpus as int)
 
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
