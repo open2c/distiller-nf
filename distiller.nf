@@ -594,7 +594,7 @@ process bin_zoom_library_pairs{
     def balance_options = params['bin'].get('balance_options','')
     balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
-    def balance_flag = ( params['bin'].get('balance','true').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+    def balance_flag = ( params['bin'].get('balance','true').toBoolean() ? "--balance ${balance_options}" : " " )
     def filter_command = (filter_expr == '' ? '' : "| pairtools select '${filter_expr}'")
 
     """
