@@ -263,7 +263,7 @@ String fastqLocalTruncateChunkCmd(path, library, run, side,
 
 process download_truncate_chunk_fastqs{
     tag "library:${library} run:${run}"
-    storeDir getOutputDir('processed_fastqs')
+    publishDir path: getOutputDir('processed_fastqs')
 
     input:
     set val(library), val(run), 
@@ -306,7 +306,8 @@ process download_truncate_chunk_fastqs{
 
 process local_truncate_chunk_fastqs{
     tag "library:${library} run:${run}"
-    storeDir getOutputDir('processed_fastqs')
+    publishDir path: getOutputDir('processed_fastqs')
+
 
     input:
     set val(library), val(run), 
@@ -394,7 +395,8 @@ LIB_RUN_CHUNK_FASTQS_FOR_QC
 process fastqc{
 
     tag "library:${library} run:${run} chunk:${chunk} side:${side}"
-    storeDir getOutputDir('fastqc')
+    publishDir path: getOutputDir('fastqc'), mode: "copy"
+
 
     input:
     set val(library), val(run), val(chunk), val(side), 
@@ -429,7 +431,7 @@ BWA_INDEX = Channel.from([[
  */
 process map_parse_sort_chunks {
     tag "library:${library} run:${run} chunk:${chunk}"
-    storeDir getOutputDir('mapped_parsed_sorted_chunks')
+    publishDir path: getOutputDir('mapped_parsed_sorted_chunks')
  
     input:
     set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQS
@@ -491,7 +493,7 @@ LIB_RUN_CHUNK_PAIRSAMS
 
 process merge_dedup_splitbam {
     tag "library:${library}"
-    storeDir getOutputDir('pairs_library')
+    publishDir path: getOutputDir('pairs_library'), mode: "copy"
  
     input:
     set val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_MERGE
@@ -579,7 +581,7 @@ FILTERS
 
 process bin_zoom_library_pairs{
     tag "library:${library} filter:${filter_name}"
-    storeDir getOutputDir('coolers_library')
+    publishDir path: getOutputDir('coolers_library'), mode: "copy"
 
     input:
         set val(filter_name), val(filter_expr), val(library), file(pairs_lib) from LIB_FILTER_PAIRS
