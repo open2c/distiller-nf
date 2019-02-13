@@ -28,7 +28,7 @@ trap cleanup EXIT
 
 cd ${TMPDATADIR}
 #curl -LkSs https://api.github.com/repos/mirnylab/distiller-test-data/tarball | tar -zxf - 
-wget -qO- https://api.github.com/repos/mirnylab/distiller-test-data/tarball | tar xvz
+wget -O - https://api.github.com/repos/mirnylab/distiller-test-data/tarball | tar xvz
 # cd to the first (and the only) folder that was extracted from the tarball
 cd $(ls -d */|head -n 1)
 mv -n ./genome ${PROJECT_DIR}

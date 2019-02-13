@@ -9,15 +9,21 @@ vim: syntax=groovy
  * Miscellaneous code for the pipeline
  */
 
+MIN_RES = params['bin'].resolutions.collect { it as int }.min()
+ASSEMBLY_NAME = params['input'].genome.assembly_name
+
 switch(params.compression_format) {
     case 'gz':
         suffix = 'gz'
+        decompress_command = 'bgzip -cd -@ 3'
         break
     case 'lz4':
         suffix = 'lz4'
+        decompress_command = 'lz4c -cd'
         break
     default:
         suffix = 'gz'
+        decompress_command = 'bgzip -cd -@ 3'
         break
 }
 
@@ -25,15 +31,19 @@ boolean isSingleFile(object) {
     object instanceof Path  
 }
 
-String getOutDir(output_type) {
-    new File(params.output.get('base_dir', ''),
-             params.output.dirs.get(output_type, output_type)).getCanonicalPath()
+String getOutputDir(output_type) {
+    new File(params.output.dirs.get(output_type, output_type)).getCanonicalPath()
 }
 
-String getIntermediateDir(intermediate_type) {
-    new File(params.intermediates.get('base_dir', ''),
-             params.intermediates.dirs.get(
-                intermediate_type, intermediate_type)).getCanonicalPath()
+Boolean needsDownloading(query) {
+    return (
+        (query instanceof String) && (
+           query.startsWith('sra:') 
+           || query.startsWith('http://')
+           || query.startsWith('https://')
+           || query.startsWith('ftp://') 
+       )
+   )
 }
 
 String checkLeftRightChunk(left_chunk_fname,right_chunk_fname) {
@@ -79,238 +89,245 @@ Channel.from(
 // the Channel the location of Raw Data (fastqs):
 LIB_RUN_SOURCES = Channel.from(
     params.input.raw_reads_paths.collect{
-        k, v -> v.collect{k2, v2 -> [k,k2]+v2}}.sum())
+        k, v -> v.collect{k2, v2 -> (v2.size() == 1)
+                                    ? [k,k2]+v2+[null]
+                                    : [k,k2]+v2
+                         }
+        }.sum()
+    )
+
+LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK = Channel.create()
+LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK = Channel.create()
+LIB_RUN_SOURCES_LOCAL_NO_PROCESSING = Channel.create()
+LIB_RUN_SOURCES.choice(
+    LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK, 
+    LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK, 
+    LIB_RUN_SOURCES_LOCAL_NO_PROCESSING) {
+    a -> ( ( needsDownloading(a[2]) || needsDownloading(a[3]) ) 
+            ? 0
+            : ( (    (params['map'].get('chunksize', 0) > 0)
+                  || (params['input'].get('truncate_fastq_reads', 0) > 0)
+                ) ? 1 : 2
+              )
+         )
+}
+
+LIB_RUN_SOURCES_LOCAL_NO_PROCESSING
+    .map{ v -> [v[0], v[1], file(v[2]), file(v[3])]}
+    .set{ LIB_RUN_SOURCES_LOCAL_NO_PROCESSING }
+
+
+LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK
+    .map{ v -> [v[0], v[1], file(v[2]), file(v[3])] }
+    .set{ LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK }
 
 /*
- * Download fastqs from SRA.
+ * Download and chunk fastqs.
  */
 
-LIB_RUN_SRAS = Channel.create()
-LIB_RUN_LOCAL_FASTQS = Channel.create()
-LIB_RUN_REMOTE_FASTQS = Channel.create()
-LIB_RUN_SOURCES.choice(LIB_RUN_SRAS, LIB_RUN_REMOTE_FASTQS, LIB_RUN_LOCAL_FASTQS) {
-    a -> a.size() == 3 ? 0 : ( (a[2].startsWith('http://')
-                               || a[2].startsWith('https://') 
-                               || a[2].startsWith('ftp://') 
-                               || a[3].startsWith('http://')
-                               || a[3].startsWith('https://')
-                               || a[3].startsWith('ftp://') 
-                               ) ? 1 : 2)
+
+def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1) {
+    def srr_start_flag = (srr_start == 0) ? '' : (' --minSpotId ' + srr_start)
+    def srr_end_flag = (srr_end == -1) ? '' : (' --maxSpotId ' + srr_end)
+    def bgzip_threads = Math.max(1,((threads as int)-2).intdiv(2))
+
+    def cmd = """
+        HOME=`readlink -e ./`
+        fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
+                       | pyfilesplit --lines 4 \
+                         >(bgzip -c -@{bgzip_threads} > ${library}.${run}.1.fastq.gz) \
+                         >(bgzip -c -@{bgzip_threads} > ${library}.${run}.2.fastq.gz) \
+                         | cat """
+
+    return cmd
+}
+
+
+def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0, 
+                           chunksize=0, threads=1) {
+    def cmd = ""
+
+    def srr = ( sra_query =~ /SRR\d+/ )[0]
+    def srrnum = srr.substring(3)
+
+    def srr_start = 0
+    def srr_end = -1
+
+    if ( sra_query.contains('start=') ) {
+        srr_start = ( sra_query =~ /start=(\d+)/ )[0][1] 
+    } 
+        
+    if ( truncate_fastq_reads ) {
+        srr_end = srr_start + truncate_fastq_reads
+    } else if ( sra_query.contains('end=') ) {
+        srr_end = (sra_query =~ /end=(\d+)/)[0][1]
     }
 
-process download_sra {
-    tag "$query"
-    storeDir getIntermediateDir('downloaded_fastqs')
- 
-    input:
-    set val(library), val(run), val(query) from LIB_RUN_SRAS
-     
-    output:
-    set library, run, 
-        "${library}.${run}.1.fastq.gz", 
-        "${library}.${run}.2.fastq.gz" into LIB_RUN_FASTQ_SRA
- 
-    script:
-    if( query == null) error "No files provided for library ${library}, run ${run}"
-
-    sra_cli = query.tokenize(':')[-1]
-    srr = sra_cli.contains('?') ? sra_cli.tokenize('\\?')[0] : sra_cli
-    srrnum = srr.substring(3)
-    srrnum_three_digs = srrnum.take(3)
-    sra_cli = srr + (sra_cli.contains('?') ? (
-        sra_cli.tokenize('\\?')[-1].tokenize('&').collect{
-            it.startsWith('start=') 
-            ? (' --minSpotId '+it.tokenize('=')[1])
-            : (it.startsWith('end=') ? (' --maxSpotId '+it.tokenize('=')[1]) : '')
-        }).join(' ') : '')
-
-    if( query.startsWith('sra:') ) {
-        if( query.contains('?') ) {
-            """
-            fastq-dump -F ${sra_cli} --split-files --gzip
-            mv ${srr}_1.fastq.gz ${library}.${run}.1.fastq.gz
-            mv ${srr}_2.fastq.gz ${library}.${run}.2.fastq.gz
-            """
-        }
-        else {
-            """ 
-            wget ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR${srrnum_three_digs}/${srr}/${srr}.sra -O ${srr}.sra
-            fastq-dump -F ${srr}.sra --split-files --gzip
-            mv ${srr}_1.fastq.gz ${library}.${run}.1.fastq.gz
-            mv ${srr}_2.fastq.gz ${library}.${run}.2.fastq.gz
-            rm ${srr}.sra 
-            """
-        }
+    if ((srr_start > 0) || (srr_end != -1)) {
+        cmd = """
+            ${fastqDumpCmd(srr, library, run, srr_start, srr_end, threads)}
+            if [ -d ./ncbi ]; then rm -Rf ./ncbi; fi
+        """
     }
     else {
-        error "Runs can be defined with one line only with SRA"
+        cmd = """
+            wget ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR${srrnum.take(3)}/${srr}/${srr}.sra -qO ${srr}.sra
+            ${fastqDumpCmd(srr+'.sra', library, run, 0, -1, threads)}
+            rm ${srr}.sra
+        """
     }
+
+    def chunk_lines = 4 * chunksize
+    def split_bgzip_threads = Math.max(1, (threads as int)-1)
+    if ( (truncate_fastq_reads == 0) && (chunk_lines > 0) ) {
+        for (side in 1..2) {
+            cmd += """
+                zcat ${library}.${run}.${side}.fastq.gz | \
+                     split -l ${chunk_lines} --numeric-suffixes=1 \
+                     --filter 'bgzip -c -@ ${split_bgzip_threads} > \$FILE.${side}.fastq.gz' - \
+                     ${library}.${run}.
+                rm ${library}.${run}.${side}.fastq.gz 
+            """
+        }
+    } else {
+        for (side in 1..2) {
+            cmd += """
+                mv ${library}.${run}.${side}.fastq.gz ${library}.${run}.0.${side}.fastq.gz
+            """
+        }
+    }
+
+    return cmd
 }
 
 
-process download_fastq {
+String fastqDownloadTruncateCmd(query, library, run, side, 
+                                truncate_fastq_reads=0, chunksize=0, threads=2) {
+    def cmd = ''
+
+    def truncate_lines = 4 * truncate_fastq_reads
+    def chunk_lines = 4 * chunksize
+    def bgzip_threads = Math.max(1, (threads as int)-1)
+
+    if (truncate_lines > 0) {
+        cmd = """head -n ${truncate_lines} < <(wget ${query} -O - | gunzip -cd )\
+                 | bgzip -c -@ ${bgzip_threads} \
+                 > ${library}.${run}.0.${side}.fastq.gz
+              """
+    } else if (chunk_lines > 0) {
+        cmd = """wget ${query} -O - \
+                 | gunzip -cd \
+                 | split -l ${chunk_lines} --numeric-suffixes=1 \
+                 --filter 'bgzip -c -@ ${bgzip_threads} > \$FILE.${side}.fastq.gz' - \
+                 ${library}.${run}.
+             """
+    } else {
+        cmd = "wget ${query} -O ${library}.${run}.0.${side}.fastq.gz"
+    }
+
+    return cmd
+}
+
+
+String fastqLocalTruncateChunkCmd(path, library, run, side, 
+                                  truncate_fastq_reads=0, chunksize=0, threads=1) {
+    def cmd = ""
+
+    def truncate_lines = 4 * truncate_fastq_reads
+    def chunk_lines = 4 * chunksize
+    def bgzip_threads = Math.max(1, (threads as int)-1)
+
+    if (truncate_lines > 0) {
+        cmd = """head -n ${truncate_lines} < <( zcat ${path} ) \
+                 | bgzip -c -@ ${bgzip_threads} \
+                 >  ${library}.${run}.0.${side}.fastq.gz 
+        """
+    } else if (chunk_lines > 0) {
+        cmd = """
+            zcat ${path} | \
+            split -l ${chunk_lines} --numeric-suffixes=1 \
+            --filter 'bgzip -c -@ ${bgzip_threads} > \$FILE.${side}.fastq.gz' - \
+            ${library}.${run}.
+        """
+    } else {
+        // this line should never be reached, b/c local files should only
+        // be processed if truncation or chunking is requested.
+        cmd = "mv ${path} ${library}.${run}.0.${side}.fastq.gz"
+    }
+
+    return cmd
+}
+
+
+process download_truncate_chunk_fastqs{
     tag "library:${library} run:${run}"
-    storeDir getIntermediateDir('downloaded_fastqs')
- 
+    storeDir getOutputDir('processed_fastqs')
+
     input:
-    set val(library), val(run), val(fastq1_url), val(fastq2_url) from LIB_RUN_REMOTE_FASTQS
+    set val(library), val(run), 
+        val(query1), val(query2) from LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK
      
-    output:
-    set library, run, 
-        "${library}.${run}.1.fastq.gz", 
-        "${library}.${run}.2.fastq.gz" into LIB_RUN_DOWNLOADED_FASTQS
- 
-    script:
-    if (fastq1_url == null) error "No files provided for library ${library}, run ${run}, side 1"
-    if (fastq2_url == null) error "No files provided for library ${library}, run ${run}, side 2"
-
-    download_cmd1 = ((fastq1_url.startsWith('http://') 
-                     || fastq1_url.startsWith('https://') 
-                     || fastq1_url.startsWith('ftp://')) 
-                    ? "wget ${fastq1_url} -O ${library}.${run}.1.fastq.gz"
-                    : "ln -s ${fastq1_url} ${library}.${run}.1.fastq.gz"
-                    )
-    download_cmd2 = ((fastq2_url.startsWith('http://') 
-                     || fastq2_url.startsWith('https://') 
-                     || fastq2_url.startsWith('ftp://')) 
-                    ? "wget ${fastq2_url} -O ${library}.${run}.2.fastq.gz"
-                    : "ln -s ${fastq2_url} ${library}.${run}.2.fastq.gz"
-                    )
-    """
-    ${download_cmd1}
-    ${download_cmd2}
-    """
-
-}
-
-LIB_RUN_LOCAL_FASTQS
-    .mix(LIB_RUN_FASTQ_SRA)
-    .mix(LIB_RUN_DOWNLOADED_FASTQS)
-    .map{ v -> [v[0], v[1], file(v[2]), file(v[3])] }
-    .set{ LIB_RUN_FASTQS }
-
-
-/* 
- * Truncate fastqs for quick semi-dry runs.
- */
-
-LIB_RUN_FASTQS_NO_TRUNC = Channel.create()
-LIB_RUN_FASTQS_FOR_TRUNC = Channel.create()
-LIB_RUN_FASTQS
-    .choice(LIB_RUN_FASTQS_NO_TRUNC, LIB_RUN_FASTQS_FOR_TRUNC) {
-    it -> params['input'].get('truncate_fastq_reads', 0) == 0 ? 0 : 1
-}
-
-process truncate_fastqs{
-    executor 'local'
-
-    input:
-    set val(library), val(run), file(fastq1), file(fastq2) from LIB_RUN_FASTQS_FOR_TRUNC
-
-    output:
-    set library, run, 
-        "${library}.${run}.truncated_${truncate_fastq_reads}.1.fastq.gz", 
-        "${library}.${run}.truncated_${truncate_fastq_reads}.2.fastq.gz" into LIB_RUN_FASTQS_TRUNCATED
-
-    script:
-    truncate_fastq_reads = params['input']['truncate_fastq_reads']
-    truncate_lines = 4 * params['input']['truncate_fastq_reads']
-
-    """
-    zcat ${fastq1} | head -n ${truncate_lines} | pbgzip -c -n ${task.cpus} > \
-        ${library}.${run}.truncated_${truncate_fastq_reads}.1.fastq.gz
-
-    zcat ${fastq2} | head -n ${truncate_lines} | pbgzip -c -n ${task.cpus} > \
-        ${library}.${run}.truncated_${truncate_fastq_reads}.2.fastq.gz
-    """
-}
-
-LIB_RUN_FASTQS_TRUNCATED
-    .mix(LIB_RUN_FASTQS_NO_TRUNC)
-    .set{LIB_RUN_FASTQS}
-
-
-/*
- * FastQC the input files.
- */
-
-LIB_RUN_FASTQS_FOR_QC = Channel.create()
-LIB_RUN_FASTQS
-    .tap(LIB_RUN_FASTQS_FOR_QC)
-    .set{LIB_RUN_FASTQS}
-
-LIB_RUN_FASTQS_FOR_QC
-    .filter { it -> params.get('do_fastqc', 'false').toBoolean() }
-    .map{ v -> [v[0], v[1], [[1,file(v[2])], [2,file(v[3])]]]} 
-    .flatMap{ 
-        vs -> vs[2].collect{ 
-            it -> [vs[0],
-                   vs[1], 
-                   it[0],
-                   it[1]] } }
-    .set {LIB_RUN_SIDE_FASTQS_FOR_QC}
-
-process fastqc{
-
-    tag "library:${library} run:${run} side:${side}"
-    publishDir path: getOutDir('fastqc'), mode:"copy"
-
-    input:
-    set val(library), val(run), val(side), file(fastq) from LIB_RUN_SIDE_FASTQS_FOR_QC
-
-    output:
-    set library, run, side,  
-        "${library}.${run}.${side}_fastqc.html", 
-        "${library}.${run}.${side}_fastqc.zip" into LIB_RUN_SIDE_FASTQCS
-
-    """
-    mkdir -p ./temp_fastqc/
-    ln -s \"\$(readlink -f ${fastq})\" ./temp_fastqc/${library}.${run}.${side}.fastq.gz
-    fastqc --threads ${task.cpus} -o ./ -f fastq ./temp_fastqc/${library}.${run}.${side}.fastq.gz
-    rm -r ./temp_fastqc/
-    """
-          
-}
-
-
-
-/* 
- * Chunk fastqs
- */ 
-
-LIB_RUN_FASTQS_NO_CHUNK = Channel.create()
-LIB_RUN_FASTQS_FOR_CHUNK = Channel.create()
-LIB_RUN_FASTQS
-    .choice(LIB_RUN_FASTQS_NO_CHUNK, LIB_RUN_FASTQS_FOR_CHUNK) {
-    it -> params['map'].get('chunksize', 0) == 0 ? 0 : 1
-}
-
-
-process chunk_fastqs {
-    tag "library:${library} run:${run}"
-    storeDir getIntermediateDir('fastq_chunks')
-
-
-    input:
-    set val(library), val(run),file(fastq1), file(fastq2) from LIB_RUN_FASTQS_FOR_CHUNK
-
     output:
     set library, run, 
         "${library}.${run}.*.1.fastq.gz", 
-        "${library}.${run}.*.2.fastq.gz" into LIB_RUN_FASTQ_CHUNKED
-
-
+        "${library}.${run}.*.2.fastq.gz" into LIB_RUN_CHUNK_DOWNLOADED_PROCESSED
+ 
     script:
-    chunksize_lines = 4 * params['map'].chunksize
-   
-    """
-    zcat ${fastq1} | split -l ${chunksize_lines} -d \
-        --filter 'pbgzip -c -n ${task.cpus} > \$FILE.1.fastq.gz' - \
-        ${library}.${run}.
+    def truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
+    def chunksize = params['map'].get('chunksize', 0) 
 
-    zcat ${fastq2} | split -l ${chunksize_lines} -d \
-        --filter 'pbgzip -c -n ${task.cpus} > \$FILE.2.fastq.gz' - \
-        ${library}.${run}.
+    def download_truncate_chunk_cmd1 = ""
+    def download_truncate_chunk_cmd2 = ""
+
+    if (query1.startsWith('sra:')) {
+        if ( !(( query2 == null) || (! query2.toBoolean())) ) {
+            error "Runs defined with SRA should only contain one line"
+        }
+        
+        download_truncate_chunk_cmd1 += sraDownloadTruncateCmd(
+            query1, library, run, truncate_fastq_reads, chunksize, task.cpus)
+
+    } else {
+        download_truncate_chunk_cmd1 += fastqDownloadTruncateCmd(
+            query1, library, run, 1, truncate_fastq_reads, chunksize, task.cpus)
+
+        download_truncate_chunk_cmd2 += fastqDownloadTruncateCmd(
+            query2, library, run, 2, truncate_fastq_reads, chunksize, task.cpus)
+    }
+
+
+    """
+    ${download_truncate_chunk_cmd1}
+    ${download_truncate_chunk_cmd2}
+    """
+}
+
+process local_truncate_chunk_fastqs{
+    tag "library:${library} run:${run}"
+    storeDir getOutputDir('processed_fastqs')
+
+    input:
+    set val(library), val(run), 
+        file(fastq1), file(fastq2) from LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK
+     
+    output:
+    set library, run, 
+        "${library}.${run}.*.1.fastq.gz", 
+        "${library}.${run}.*.2.fastq.gz" into LIB_RUN_CHUNK_LOCAL_PROCESSED
+ 
+    script:
+
+    def truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
+    def chunksize = params['map'].get('chunksize', 0) 
+
+    def truncate_chunk_cmd1 = fastqLocalTruncateChunkCmd(
+        fastq1, library, run, 1, truncate_fastq_reads, chunksize, task.cpus)
+    def truncate_chunk_cmd2 = fastqLocalTruncateChunkCmd(
+        fastq2, library, run, 2, truncate_fastq_reads, chunksize, task.cpus)
+
+    """
+    ${truncate_chunk_cmd1}
+    ${truncate_chunk_cmd2}
     """
 }
 
@@ -318,467 +335,344 @@ process chunk_fastqs {
 // use new transpose operator 
 // to undo 'groupBy' of 'chunk_fastqs' process:
 // https://github.com/nextflow-io/nextflow/issues/440
-LIB_RUN_FASTQ_CHUNKED
-.transpose()
-.map{[it[0],
-      it[1],
-      // index of the chunk (checked for safety):
-      checkLeftRightChunk(it[2],it[3]),
-      it[2],
-      it[3]]}
-.set{ LIB_RUN_CHUNK_FASTQ }
+LIB_RUN_CHUNK_DOWNLOADED_PROCESSED
+    .transpose()
+    .map{[it[0],
+          it[1],
+          // index of the chunk (checked for safety):
+          checkLeftRightChunk(it[2],it[3]),
+          it[2],
+          it[3]]}
+    .set{ LIB_RUN_CHUNK_FASTQS }
+
+LIB_RUN_CHUNK_LOCAL_PROCESSED
+    .transpose()
+    .map{[it[0],
+          it[1],
+          // index of the chunk (checked for safety):
+          checkLeftRightChunk(it[2],it[3]),
+          it[2],
+          it[3]]}
+    .mix(LIB_RUN_CHUNK_FASTQS)
+    .set{ LIB_RUN_CHUNK_FASTQS }
 
 
-LIB_RUN_FASTQS_NO_CHUNK
-.map{[it[0],
-      it[1],
-      // index of the non-chunked is 0:
-      0,
-      it[2],
-      it[3]]}
-.mix(LIB_RUN_CHUNK_FASTQ)
-.set{LIB_RUN_CHUNK_FASTQ}
+LIB_RUN_SOURCES_LOCAL_NO_PROCESSING
+    .map{[it[0],
+          it[1],
+          // index of the non-chunked is 0:
+          0,
+          it[2],
+          it[3]]}
+    .mix(LIB_RUN_CHUNK_FASTQS)
+    .set{LIB_RUN_CHUNK_FASTQS}
+
+
+/*
+ * FastQC the input files.
+ */
+
+LIB_RUN_CHUNK_FASTQS_FOR_QC = Channel.create()
+LIB_RUN_CHUNK_FASTQS
+    .tap(LIB_RUN_CHUNK_FASTQS_FOR_QC)
+    .set{LIB_RUN_CHUNK_FASTQS}
+
+LIB_RUN_CHUNK_FASTQS_FOR_QC
+    .filter { it -> params.get('do_fastqc', 'false').toBoolean() }
+    .map{ v -> [v[0], v[1], v[2], [[1,file(v[3])], [2,file(v[4])]]]} 
+    .flatMap{ 
+        vs -> vs[3].collect{ 
+            it -> [vs[0],
+                   vs[1], 
+                   vs[2], 
+                   it[0],
+                   it[1]] } }
+    .set {LIB_RUN_CHUNK_SIDE_FASTQS_FOR_QC}
+
+process fastqc{
+
+    tag "library:${library} run:${run} chunk:${chunk} side:${side}"
+    storeDir getOutputDir('fastqc')
+
+    input:
+    set val(library), val(run), val(chunk), val(side), 
+        file(fastq) from LIB_RUN_CHUNK_SIDE_FASTQS_FOR_QC
+
+    output:
+    set library, run, chunk, side,  
+        "${library}.${run}.${chunk}.${side}_fastqc.html", 
+        "${library}.${run}.${chunk}.${side}_fastqc.zip" into LIB_RUN_CHUNK_SIDE_QCS
+
+    """
+    TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
+    ln -s \"\$(readlink -f ${fastq})\" \$TASK_TMP_DIR/${library}.${run}.${chunk}.${side}.fastq.gz
+    fastqc --threads ${task.cpus} -o ./ -f fastq \$TASK_TMP_DIR/${library}.${run}.${chunk}.${side}.fastq.gz
+    rm -r \$TASK_TMP_DIR
+    """
+          
+}
+
 
 
 BWA_INDEX = Channel.from([[
-             params.input.genome.bwa_index_wildcard
+             params.input.genome.bwa_index_wildcard_path
                 .split('/')[-1]
                 .replaceAll('\\*$', "")
                 .replaceAll('\\.$', ""),
-             file(params.input.genome.bwa_index_wildcard),
+             file(params.input.genome.bwa_index_wildcard_path),
             ]])
 
 /*
  * Map fastq files
  */
-process map_chunks {
+process map_parse_sort_chunks {
     tag "library:${library} run:${run} chunk:${chunk}"
-    storeDir getIntermediateDir('bam_run')
-
+    storeDir getOutputDir('mapped_parsed_sorted_chunks')
  
     input:
-    set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQ
+    set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQS
     set val(bwa_index_base), file(bwa_index_files) from BWA_INDEX.first()
-     
-    output:
-    set library, run, chunk, "${library}.${run}.${chunk}.bam" into LIB_RUN_CHUNK_BAMS
-
-    script:
-    // additional mapping options or empty-line
-    mapping_options = params['map'].get('mapping_options','')
- 
-    """
-    bwa mem -t ${task.cpus} ${mapping_options} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
-        | samtools view -bS > ${library}.${run}.${chunk}.bam \
-        | cat
-    """
-}
-
-
-/*
- * Parse mapped bams
- */
-
-
-
-process parse_chunks {
-    tag "library:${library} run:${run} chunk:${chunk}"
-    storeDir getIntermediateDir('pairsam_chunk')
-
-    input:
-    set val(library), val(run), val(chunk), file(bam) from LIB_RUN_CHUNK_BAMS
     file(chrom_sizes) from CHROM_SIZES_FOR_PARSING.first()
      
     output:
-    set library, run, "${library}.${run}.${chunk}.pairsam.${suffix}" into LIB_RUN_CHUNK_PAIRSAMS
- 
+    set library, run, chunk,
+        "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix}",
+        "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam" into LIB_RUN_CHUNK_PAIRSAMS
+
     script:
-    dropsam_flag = params['map'].get('drop_sam','false').toBoolean() ? '--drop-sam' : ''
-    dropreadid_flag = params['map'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
-    dropseq_flag = params['map'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
+    // additional mapping options or empty-line
+    def mapping_options = params['map'].get('mapping_options','')
+
+    def dropsam_flag = params['parse'].get('make_pairsam','false').toBoolean() ? '' : '--drop-sam'
+    def dropreadid_flag = params['parse'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
+    def dropseq_flag = params['parse'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
+    def keep_unparsed_bams_command = ( 
+        params['parse'].get('keep_unparsed_bams','false').toBoolean() ? 
+        "| tee >(samtools view -bS > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam)" : "" )
+    def parsing_options = params['parse'].get('parsing_options','')
+
+    //def bwa_threads = Math.max(1, 
+    //                      ((((task.cpus as int)*0.6).round()) as int))
+    //def sorting_threads = Math.max(1, (task.cpus as int)-bwa_threads)
+    // Since bwa and sort operate on the same pipe, they do not use their 
+    // cores simultaneously and it is safe to give both of them all cores.
+    def bwa_threads = (task.cpus as int)
+    def sorting_threads = (task.cpus as int)
 
     """
-    mkdir ./tmp4sort
-    pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-        --add-columns mapq \
-        -c ${chrom_sizes} ${bam} \
-            | pairtools sort --nproc ${task.cpus} \
-                             -o ${library}.${run}.${chunk}.pairsam.${suffix} \
-                             --tmpdir ./tmp4sort \
+    TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
+    touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam 
+    bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
+        ${keep_unparsed_bams_command} \
+        | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+            ${parsing_options} \
+            -c ${chrom_sizes} \
+            | pairtools sort --nproc ${sorting_threads} \
+                             -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
+                             --tmpdir \$TASK_TMP_DIR \
             | cat
 
-
-    rm -rf ./tmp4sort
+    rm -rf \$TASK_TMP_DIR
 
     """        
 
 }
 
-
-
 /*
- * Merge .pairsams for chunks into runs
+ * Merge .pairsams into libraries
  */
+
 LIB_RUN_CHUNK_PAIRSAMS
-     .groupTuple(by: [0, 1])
-     .set {LIB_RUN_GROUP_PAIRSAMS}
-
-process merge_chunks_into_runs {
-    tag "library:${library} run:${run}"
-    storeDir getIntermediateDir('pairsam_run')
- 
-    input:
-    set val(library), val(run), file(pairsam_chunks) from LIB_RUN_GROUP_PAIRSAMS
-     
-    output:
-    set library, run, "${library}.${run}.pairsam.${suffix}" into LIB_RUN_PAIRSAMS
- 
-    script:
-    // can we replace this part with just the "else" branch, so that pairtools merge will take care of it?
-    if( isSingleFile(pairsam_chunks) )
-        """
-        ln -s \"\$(readlink -f ${pairsam_chunks})\" ${library}.${run}.pairsam.${suffix}
-        """
-    else
-        """
-        mkdir ./tmp4sort
-        pairtools merge ${pairsam_chunks} --nproc ${task.cpus} -o ${library}.${run}.pairsam.${suffix} --tmpdir ./tmp4sort
-        rm -rf ./tmp4sort
-        """
-
-}
-
-/*
- * Merge .pairsams for runs into libraries
- */
-
-LIB_RUN_PAIRSAMS
-    .map {library, run, file -> tuple(library, file)}
+    .map {library, run, chunk, pairsam, bam -> tuple(library, pairsam)}
     .groupTuple()
     .set {LIB_PAIRSAMS_TO_MERGE}
 
-process merge_runs_into_libraries {
+process merge_dedup_splitbam {
     tag "library:${library}"
-    storeDir getIntermediateDir('pairsam_library')
-
+    storeDir getOutputDir('pairs_library')
  
     input:
     set val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_MERGE
      
     output:
-    set library, "${library}.pairsam.${suffix}" into LIB_PAIRSAMS
-
-    script:
-    if( isSingleFile(run_pairsam))
-        """
-        ln -s \"\$(readlink -f ${run_pairsam})\" ${library}.pairsam.${suffix}
-        """
-    else
-        """
-        mkdir ./tmp4sort
-        pairtools merge ${run_pairsam} --nproc ${task.cpus} -o ${library}.pairsam.${suffix} --tmpdir ./tmp4sort
-        rm -rf ./tmp4sort
-        """
-}
-
-
-/*
- * Make pairs bam
- */
-
-process filter_make_pairs {
-    tag "library:${library}"
-    publishDir path:'.', mode:"copy", saveAs: {
-      if( it.endsWith('.nodups.pairs.gz' ))
-        return getOutDir("pairs_library") +"/${library}.nodups.pairs.gz"
-
-      if( it.endsWith('.nodups.bam' ))
-        return getOutDir("bams_library") +"/${library}.nodups.bam"
-
-      if( it.endsWith('.dups.pairs.gz' ))
-        return getOutDir("pairs_library") +"/${library}.dups.pairs.gz"
-
-      if( it.endsWith('.dups.bam' ))
-        return getOutDir("bams_library") +"/${library}.dups.bam"
-
-      if( it.endsWith('.unmapped.pairs.gz' ))
-        return getOutDir("pairs_library") +"/${library}.unmapped.pairs.gz"
-
-      if( it.endsWith('.unmapped.bam' ))
-        return getOutDir("bams_library") +"/${library}.unmapped.bam"
-
-      if( it.endsWith('.dedup.stats' ))
-        return getOutDir("stats_library") +"/${library}.dedup.stats"
-    }
-
+    set library, "${library}.${ASSEMBLY_NAME}.nodups.pairs.gz", 
+                 "${library}.${ASSEMBLY_NAME}.nodups.pairs.gz.px2", 
+                 "${library}.${ASSEMBLY_NAME}.nodups.bam",
+                 "${library}.${ASSEMBLY_NAME}.dups.pairs.gz", 
+                 "${library}.${ASSEMBLY_NAME}.dups.bam", 
+                 "${library}.${ASSEMBLY_NAME}.unmapped.pairs.gz", 
+                 "${library}.${ASSEMBLY_NAME}.unmapped.bam" into LIB_PAIRS_BAMS
+    set library, "${library}.${ASSEMBLY_NAME}.dedup.stats" into LIB_DEDUP_STATS
  
-    input:
-    set val(library), file(pairsam_lib) from LIB_PAIRSAMS
-     
-    output:
-    set library, "${library}.nodups.pairs.gz", "${library}.nodups.bam",
-                 "${library}.dups.pairs.gz", "${library}.dups.bam", 
-                 "${library}.unmapped.pairs.gz", 
-                 "${library}.unmapped.bam" into LIB_PAIRS_BAMS
-    set library, "${library}.dedup.stats" into LIB_DEDUP_STATS
-    
     script:
-    dropsam = params['map'].get('drop_sam','false').toBoolean()
-    if(dropsam) 
-        """
-        pairtools dedup \
-            --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
-            --mark-dups \
-            --output ${library}.nodups.pairs.gz \
-            --output-unmapped ${library}.unmapped.pairs.gz \
-            --output-dups ${library}.dups.pairs.gz \
-            --output-stats ${library}.dedup.stats \
-            ${pairsam_lib} \
-            | cat
+    def make_pairsam = params['parse'].get('make_pairsam','false').toBoolean()
+    def merge_command = ( 
+        isSingleFile(run_pairsam) ?
+        "${decompress_command} ${run_pairsam}" : 
+        "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir \$TASK_TMP_DIR"
+    )
 
-        touch ${library}.unmapped.bam
-        touch ${library}.nodups.bam
-        touch ${library}.dups.bam
+    if(make_pairsam) 
+        """
+        TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
 
-        """
-    else 
-        """
-        pairtools dedup \
-            --max-mismatch ${params.filter.pcr_dups_max_mismatch_bp} \
+        ${merge_command} | pairtools dedup \
+            --max-mismatch ${params.dedup.max_mismatch_bp} \
             --mark-dups \
             --output \
                 >( pairtools split \
-                    --output-pairs ${library}.nodups.pairs.gz \
-                    --output-sam ${library}.nodups.bam \
+                    --output-pairs ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz \
+                    --output-sam ${library}.${ASSEMBLY_NAME}.nodups.bam \
                  ) \
             --output-unmapped \
                 >( pairtools split \
-                    --output-pairs ${library}.unmapped.pairs.gz \
-                    --output-sam ${library}.unmapped.bam \
+                    --output-pairs ${library}.${ASSEMBLY_NAME}.unmapped.pairs.gz \
+                    --output-sam ${library}.${ASSEMBLY_NAME}.unmapped.bam \
                  ) \
             --output-dups \
                 >( pairtools split \
-                    --output-pairs ${library}.dups.pairs.gz \
-                    --output-sam ${library}.dups.bam \
+                    --output-pairs ${library}.${ASSEMBLY_NAME}.dups.pairs.gz \
+                    --output-sam ${library}.${ASSEMBLY_NAME}.dups.bam \
                  ) \
-            --output-stats ${library}.dedup.stats \
-            ${pairsam_lib} \
+            --output-stats ${library}.${ASSEMBLY_NAME}.dedup.stats \
             | cat
 
+        rm -rf \$TASK_TMP_DIR
+        pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
         """
-    
+    else 
+        """
+        TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
+
+        ${merge_command} | pairtools dedup \
+            --max-mismatch ${params.dedup.max_mismatch_bp} \
+            --mark-dups \
+            --output ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz \
+            --output-unmapped ${library}.${ASSEMBLY_NAME}.unmapped.pairs.gz \
+            --output-dups ${library}.${ASSEMBLY_NAME}.dups.pairs.gz \
+            --output-stats ${library}.${ASSEMBLY_NAME}.dedup.stats \
+            | cat
+
+        touch ${library}.${ASSEMBLY_NAME}.unmapped.bam
+        touch ${library}.${ASSEMBLY_NAME}.nodups.bam
+        touch ${library}.${ASSEMBLY_NAME}.dups.bam
+
+        rm -rf \$TASK_TMP_DIR
+        pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
+        """
 }
-
-
-/*
- * Index .pairs.gz files with pairix
- */
 
 LIB_PAIRS_BAMS
     .map {v -> tuple(v[0], v[1])}
     .set {LIB_PAIRS}
-
-process index_pairs{
-    tag "library:${library}"
-    publishDir path: getOutDir('pairs_library'), mode:"copy", saveAs: {"${library}.nodups.pairs.gz.px2"}
-
-    input:
-    set val(library), file(pairs_lib) from LIB_PAIRS
-     
-    output:
-    set val(library), file(pairs_lib), file('*.px2') into LIB_IDX_PAIRS
- 
-    """
-    pairix ${pairs_lib}
-    """
-}
-
-
+FILTERS = Channel.from(
+    params.bin.filters.collect{ name, expr -> [name, expr] } )
+FILTERS
+    .combine(LIB_PAIRS)
+    .set {LIB_FILTER_PAIRS}
 
 /*
  * Bin indexed .pairs into .cool matrices.
  */ 
 
-
-process bin_library_pairs{
-    tag "library:${library} resolution:${res}"
-    publishDir path: getOutDir('coolers_library'), mode:"copy", saveAs: {"${library}.${res}.cool"}
-
+process bin_zoom_library_pairs{
+    tag "library:${library} filter:${filter_name}"
+    storeDir getOutputDir('coolers_library')
 
     input:
-        set val(library), file(pairs_lib), file(pairs_index_lib) from LIB_IDX_PAIRS
-        each res from params['bin'].resolutions
+        set val(filter_name), val(filter_expr), val(library), file(pairs_lib) from LIB_FILTER_PAIRS
         file(chrom_sizes) from CHROM_SIZES_FOR_BINNING.first()
 
     output:
-        set library, res, "${library}.${res}.cool" into LIB_RES_COOLERS, LIB_RES_COOLERS_TO_ZOOM
+        set library, filter_name, "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool", 
+            "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool" into LIB_FILTER_COOLERS_ZOOMED
 
     script:
 
+    def res_str = params['bin'].resolutions.join(',')
     // get any additional balancing options, if provided
-    balance_options = params['bin'].get('balance_options','')
-    // balancing command if it's requested
-    balance_command = ( params['bin'].get('balance','false').toBoolean() ? 
-        "cooler balance --nproc ${task.cpus} ${balance_options} ${library}.${res}.cool" : "" )
-
-    """
-    cooler cload pairix \
-        --nproc ${task.cpus} \
-        --assembly ${params.input.genome.assembly} \
-        ${chrom_sizes}:${res} ${pairs_lib} ${library}.${res}.cool
-
-    ${balance_command}
-    """
-}
-
-
-/*
- * Zoomify .cool matrices with highest resolution for libraries (when requested).
- */ 
-
-// use library-cooler file with the highest resolution (smallest bin size) to zoomify:
-LIB_RES_COOLERS_TO_ZOOM
-    .map{ library,res,cool -> [library,[res,cool]] }
-    .groupTuple( by: 0, sort: {res,cool -> res} )
-    // after grouping by library get res_cool_list with smallest res (highest resoution)
-    .map{ library,res_cool_list -> [library,res_cool_list[0]].flatten() }
-    .set{LIB_RES_COOLERS_TO_ZOOM}
-
-
-process zoom_library_coolers{
-    tag "library:${library} zoom"
-    publishDir path: getOutDir('zoom_coolers_library'), mode:"copy", saveAs: {"${library}.${res}.multires.cool"}
-
-
-    input:
-        set val(library), val(res), file(cool) from LIB_RES_COOLERS_TO_ZOOM
-
-    output:
-        set library, res, "${library}.${res}.multires.cool" into LIB_RES_COOLERS_ZOOMED
-
-    // run ot only if requested
-    when:
-    params['bin'].get('zoomify','false').toBoolean()
-
-
-    script:
-
-    // additional balancing options as '--balance-args' or empty-line
-    balance_options = params['bin'].get('balance_options','')
+    def balance_options = params['bin'].get('balance_options','')
     balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
-    balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+    def balance_flag = ( params['bin'].get('balance','true').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+    def filter_command = (filter_expr == '' ? '' : "| pairtools select '${filter_expr}'")
 
     """
+    ${decompress_command} ${pairs_lib} ${filter_command} | cooler cload pairs \
+        -c1 2 -p1 3 -c2 4 -p2 5 \
+        --assembly ${ASSEMBLY_NAME} \
+        ${chrom_sizes}:${MIN_RES} - ${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool
+
     cooler zoomify \
         --nproc ${task.cpus} \
-        --out ${library}.${res}.multires.cool \
+        --out ${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool \
+        --resolutions ${res_str} \
         ${balance_flag} \
-        ${cool}
+        ${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool
+
     """
 }
-
-
 
 /*
  * Merge .cool matrices for library groups.
  */ 
 
-
 LIBRARY_GROUPS_FOR_COOLER_MERGE
-    .combine(LIB_RES_COOLERS)
+    .combine(LIB_FILTER_COOLERS_ZOOMED)
     .filter{ it[1].contains(it[2]) } 
-    .map {library_group, libraries, library, res, file -> tuple(library_group, res, file)}
+    .map {library_group, libraries, library, filter_name, single_res_clr, multires_clr -> tuple(library_group, filter_name, single_res_clr)}
     .groupTuple(by: [0, 1])
-    .set { LIBGROUP_RES_COOLERS_TO_MERGE }
+    .set { LIBGROUP_FILTER_COOLERS_TO_MERGE }
 
-process make_library_group_coolers{
-    tag "library_group:${library_group} resolution:${res}"
-    publishDir path: getOutDir('coolers_library_group'), mode:"copy", saveAs: {"${library_group}.${res}.cool"}
+process merge_zoom_library_group_coolers{
+    tag "library_group:${library_group} filter:${filter_name}"
+    publishDir path: getOutputDir('coolers_library_group'), mode: "copy"
 
     input:
-        set val(library_group), val(res), file(coolers) from LIBGROUP_RES_COOLERS_TO_MERGE
+        set val(library_group), val(filter_name), file(coolers) from LIBGROUP_FILTER_COOLERS_TO_MERGE
 
     output:
-        set library_group, res, "${library_group}.${res}.cool" into LIBGROUP_RES_COOLERS, LIBGROUP_RES_COOLERS_TO_ZOOM
+        set library_group, filter_name, 
+            "${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool", 
+            "${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool" into LIBGROUP_FILTER_RES_COOLERS
 
     script:
 
-    // get any additional balancing options, if provided
-    balance_options = params['bin'].get('balance_options','')
-    // balancing command if it's requested
-    balance_command = ( params['bin'].get('balance','false').toBoolean() ? 
-        "cooler balance --nproc ${task.cpus} ${balance_options} ${library_group}.${res}.cool" : "" )
-
-    if( isSingleFile(coolers))
-        // .cool is already balanced in such case:
-        """
-        ln -s \$(readlink -f ${coolers}) ${library_group}.${res}.cool
-        """
-    else
-        // 'weight' column is gone after merging, so balance if requested:
-        """
-        cooler merge ${library_group}.${res}.cool ${coolers}
-
-        ${balance_command}
-        """
-}
-
-
-
-/*
- * Zoomify .cool matrices with highest resolution for library groups (when requested).
- */ 
-
-// use library-group-cooler file with the highest resolution (smallest bin size) to zoomify:
-LIBGROUP_RES_COOLERS_TO_ZOOM
-    .map{ library_group,res,cool -> [library_group,[res,cool]] }
-    .groupTuple( by: 0, sort: {res,cool -> res})
-    // after grouping by library_group get res_cool_list with smallest bin (highest resoution)
-    .map{ library_group,res_cool_list -> [library_group,res_cool_list[0]].flatten() }
-    .set{LIBGROUP_RES_COOLERS_TO_ZOOM}
-
-
-process zoom_library_group_coolers{
-    tag "library_group:${library_group} zoom"
-    publishDir path: getOutDir('zoom_coolers_library_group'), mode:"copy", saveAs: {"${library_group}.${res}.multires.cool"}
-
-
-    input:
-        set val(library_group), val(res), file(cool) from LIBGROUP_RES_COOLERS_TO_ZOOM
-
-    output:
-        set library_group, res, "${library_group}.${res}.multires.cool" into LIBGROUP_RES_COOLERS_ZOOMED
-
-    // run ot only if requested
-    when:
-    params['bin'].get('zoomify','false').toBoolean()
-
-
-    script:
-
-    // additional balancing options as '--balance-args' or empty-line
-    balance_options = params['bin'].get('balance_options','')
+    def res_str = params['bin'].resolutions.join(',')
+    def balance_options = params['bin'].get('balance_options','')
     balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
-    balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+    def balance_flag = ( params['bin'].get('balance','false').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
 
-    """
+    def merge_command = ""
+    if( isSingleFile(coolers))
+        merge_command = """
+            ln -s \$(readlink -f ${coolers}) ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool
+        """
+    else
+        merge_command = """
+            cooler merge ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool ${coolers}
+        """
+
+    zoom_command = """
     cooler zoomify \
         --nproc ${task.cpus} \
-        --out ${library_group}.${res}.multires.cool \
+        --out ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool \
+        --resolutions ${res_str} \
         ${balance_flag} \
-        ${cool}
+        ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool 
+    """
+
+    """
+    ${merge_command}
+    ${zoom_command}
     """
 }
-
-
 
 
 /*
  * Merge .stats for library groups
  */ 
-
 
 
 LIBRARY_GROUPS_FOR_STATS_MERGE
@@ -791,22 +685,22 @@ LIBRARY_GROUPS_FOR_STATS_MERGE
 
 process merge_stats_libraries_into_groups {
     tag "library_group:${library_group}"
-    publishDir path: getOutDir('stats_library_group'), pattern: "*.stats", mode:"copy"
+    publishDir path: getOutputDir('stats_library_group'), mode: "copy"
  
     input:
     set val(library_group), file(stats) from LIBGROUP_STATS_TO_MERGE
      
     output:
-    set library_group, "${library_group}.stats" into LIBGROUP_STATS
+    set library_group, "${library_group}.${ASSEMBLY_NAME}.stats" into LIBGROUP_STATS
 
     script:
     if( isSingleFile(stats))
         """
-        ln -s ${stats} ${library_group}.stats
+        ln -s ${stats} ${library_group}.${ASSEMBLY_NAME}.stats
         """
     else
         """
-        pairtools stats --merge ${stats} -o ${library_group}.stats
+        pairtools stats --merge ${stats} -o ${library_group}.${ASSEMBLY_NAME}.stats
         """
 }
 
