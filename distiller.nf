@@ -12,7 +12,7 @@ vim: syntax=groovy
 MIN_RES = params['bin'].resolutions.collect { it as int }.min()
 ASSEMBLY_NAME = params['input'].genome.assembly_name
 
-final_decompress_command = 'bgzip -cd -@ 3'
+pairsgz_decompress_command = 'bgzip -cd -@ 3'
 
 switch(params.compression_format) {
     case 'gz':
@@ -598,11 +598,11 @@ process bin_zoom_library_pairs{
     def balance_options = params['bin'].get('balance_options','')
     balance_options = ( balance_options ? "--balance-args \"${balance_options}\"": "")
     // balancing flag if it's requested
-    def balance_flag = ( params['bin'].get('balance','true').toBoolean() ? "--balance ${balance_options}" : "--no-balance" )
+    def balance_flag = ( params['bin'].get('balance','true').toBoolean() ? "--balance ${balance_options}" : " " )
     def filter_command = (filter_expr == '' ? '' : "| pairtools select '${filter_expr}'")
 
     """
-    ${final_decompress_command} ${pairs_lib} ${filter_command} | cooler cload pairs \
+    ${pairsgz_decompress_command} ${pairs_lib} ${filter_command} | cooler cload pairs \
         -c1 2 -p1 3 -c2 4 -p2 5 \
         --assembly ${ASSEMBLY_NAME} \
         ${chrom_sizes}:${MIN_RES} - ${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool

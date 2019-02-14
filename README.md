@@ -25,7 +25,7 @@ Requirements:
 To setup a new project, execute the following line in the project folder:
 
 ```sh
-$ nextflow clone mirnylab/distiller ./
+$ nextflow clone mirnylab/distiller-nf ./
 ```
 
 This will download the distiller pipeline and the configuration files.
@@ -46,7 +46,7 @@ $ nextflow distiller.nf -params-file project.yml
 In a new project folder, execute:
 
 ```sh
-$ nextflow clone mirnylab/distiller  ./
+$ nextflow clone mirnylab/distiller-nf  ./
 $ bash setup_test.sh
 $ nextflow distiller.nf -params-file ./test/test_project.yml 
 ```
