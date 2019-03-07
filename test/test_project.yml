@@ -110,14 +110,18 @@ parse:
     # NOTE: when 'make_pairsam' is False, the initial output of parsing is still
     # called '.pairsam' despite missing SAM alignments, for technical reasons.
     make_pairsam: True
-
-    # When 'make_pairsam' is True, enabling 'drop_readid' and 'drop_seq' erases
-    # readIDs and sequences/Phred scores from the SAM alignments in .pairsam and
-    # .bam output files. Enable to make lightweight .pairsam/.bam output.
-    # NOTE: when 'make_pairsam' is False, 'drop_readid' and 'drop_seq' are 
-    # ignored.
-    drop_readid: False
+    # When 'make_pairsam' is True, enabling 'drop_seq' erases sequences and
+    # Phred scores from the SAM alignments in .pairsam and .bam output files.
+    # Enable to make lightweight .pairsam/.bam output.
+    # NOTE: when 'make_pairsam' is False, 'drop_seq' is ignored.
     drop_seq: False
+
+    # Enable 'drop_readid' to drop readID from .pairs files to create
+    # lightweight .pairs files
+    # NOTE: does not affect alignment records in the .pairsam files and
+    # subsequently .bam files after .apirsam splitting.
+    drop_readid: False
+
     
     # When 'keep_unparsed_bams' is True, distiller preserves the _immediate_
     # output of bwa in a .bam format. Could be used as a faster alternative 
