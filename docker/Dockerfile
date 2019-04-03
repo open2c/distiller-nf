@@ -26,7 +26,7 @@ RUN conda config --set always_yes yes --set changeps1 no && \
     conda config --add channels conda-forge && \
     conda config --add channels defaults && \
     conda config --add channels bioconda && \
-    conda config --add channels golobor && \ 
+    conda config --add channels golobor && \
     conda config --get && \
     conda update -q conda && \
     conda info -a && \
