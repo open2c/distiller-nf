@@ -1,3 +1,7 @@
+### 0.3.2 (2019-04-05) ###
+
+* bugfixes in cooler
+
 ### 0.3.1 (2019-01-03) ###
 
 * bugfixes in cooler, fastqc task and apt.list
