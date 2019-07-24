@@ -24,14 +24,7 @@ script:
 
 deploy:
   provider: script
-  script:
-    - echo "$DOCKER_PASSWORD" | docker login -u mirnylab --password-stdin
-    - docker build -t mirnylab/distiller_env:latest .
-    - docker images
-    - version=$(cat ./VERSION | sed -nre 's/^[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p')
-    - docker tag mirnylab/distiller_env:latest mirnylab/distiller_env:$version
-    - docker push mirnylab/distiller_env:latest
-    - docker push mirnylab/distiller_env:$version
+  script: docker/deploy.sh
   on:
     repo: mirnylab/distiller-nf
     branch: test-deploy
