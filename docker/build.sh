@@ -4,7 +4,6 @@ USERNAME=mirnylab
 IMAGE=distiller_env
 version=$(cat ../VERSION | sed -nre 's/^[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p')
 
-
 cp  ../VERSION ./VERSION
 cp ../environment.yml ./environment.yml
 
@@ -14,6 +13,7 @@ function cleanup {
 }
 
 trap cleanup EXIT
+
 
 # bop it
 docker build -t $USERNAME/$IMAGE:latest . 
