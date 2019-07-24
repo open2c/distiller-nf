@@ -1,3 +1,8 @@
+### 0.3.3 (2019-07-24) ###
+
+* upgrade dependencies in docker environment
+* set up deployment via CI
+
 ### 0.3.2 (2019-04-05) ###
 
 * bugfixes in cooler
