@@ -6,7 +6,7 @@
 # necessary files via a temp folder.
 set -ex
 
-PROJECT_DIR=$(pwd)/test
+PROJECT_DIR=$(pwd)
 mkdir -p ${PROJECT_DIR}
 
 TMPDATADIR=`mktemp -d 2>/dev/null || mktemp -d -t 'TMPDATADIR'`
@@ -35,4 +35,3 @@ mv -n ./genome ${PROJECT_DIR}
 mv -n ./fastq ${PROJECT_DIR}
 
 cd ${PROJECT_DIR}
-
