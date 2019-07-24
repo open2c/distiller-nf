@@ -3,7 +3,7 @@ language: java
 sudo: required
 
 env:
-  - secure: "SZFOs3TbNtWI1byBqf6pvbtUjjWWkGLEQ2kSNVaUfazKlICF70vtsX8DefOxplPlU304EvIueyFT5m7ZlisONIp0Pkzt52bEIxP6gL8wtveZAXQ7QcI4ym8D9U37dwVSV9r2tGKF1verzA2F7qaS8dwTzVrqHAVmOOOqEwIgMnv23lCh1eFvypOsFBcZcE/CaVp3ziH7RSzBx9SCUi9OR7wDcVVQQBoa/NLKV6xANysw1lzJbfg3VfRp5yppOCjJCk0WxhhD3bfvL5iU0V19kLjBjSoXYLrvXViNn+vAOitM+JWjdrzCUmMIKHYUUo0aqhEg9WhgSr2SE/3/I4IaKsxhUm3LU65un7KOzib1igTIrHZ4565epNIshLsoRAjXGQOFIv6JOUD1zeIwLTz/HqvWJSURneQDTbpCUIl1qHQ5ld5wXzl+lbuO9Ps0QKrvGEJPc9WF+XNQsj27pFZyU2Z8FbmYWi5OvNhr07Rwd1OzHjmFfq39M3niiZ/eqNrUuzZw958hoBa2N8yvkkN8X12jPFrQgxlhs8G+5AtB3Y78I3mIOEgjsfLlbhqAdN11LszoA2KbWu+uJbE6F2hxg2h/5xWZ5xl/Ur3i23/3aOXOz2csK39vSVRr2yDcuCfEy9vK6NV3Hrpoh95flF9SRR9yYV7AFaS2RlfSYiY2cag="
+  - secure: "vhuz9TZYUKnRw2ZKQIhryoFCYBl4RktbDudy9piR7xKTNEE0H83WkAPkRZOEWlgoQ6kfewkD9oNrM/SihVg7v8jOczXRKTBj1fPfhAY3FuFkPNjfzup0uq67vkpcf1JKF8iIUsBAZ79uiB6h65AuCDDuJrsJVNyuvFLin6RefF5Q9lEKReObcZ+9EAgR+Ej4WnPVTm42sW4oOon+IPKaGvxI5cBiwiJxTPdf2sjv0Q1tYgEtSilfiWwNgCRRIdHWuPXhvzRhO2esbgBpMQgHUpRr/A1OzlVMH8ij7OvBDY7nBITLU4p4+rshssqvWO+NETMBLrWqK/n6/WpY2s0E4SX5s5YO1OL9Wo6RdkbxqY4P9psV8xGmmZb/78g0l+dnHWhc2JdM/G0mi2mWsnzIh5Y6uDr9kC+2J/V0DvDCiRNXxaNDe+Tl8pM3zJJoVTDEfeyij2Bw3UDGfrvh3cCGo/AkTJG/MciNYWQUgqT/GKrznAN1M7zVBhUXVEnOwb5WzYixObEElRER7LEae5AlRpcBD/5izO8RTxcLycllJJ8ao0Bd+3/NcpC/+vsPaUXq/Omvj/RdDIlQIX1jlPXvEONtPZmQZmH8Apt0ACdH7+r5XDgx675DwuHX//y1yO9MdpAqeJAER1EWSLCBrt7Vyae6Wecj/9oqMpkF5PZKgvg="
 
 services:
   - docker
@@ -24,7 +24,7 @@ script:
 
 deploy:
   provider: script
-  script: docker/deploy.sh
+  script: cd docker && bash deploy.sh
   on:
     repo: mirnylab/distiller-nf
     branch: test-deploy
