@@ -9,7 +9,7 @@ services:
   - docker
 
 before_install:
-  - cd docker && bash build.sh && cd ..
+  - cd docker && bash build.sh && bash tag.sh && cd ..
 
 install:
   - curl -fsSL get.nextflow.io | bash 
@@ -21,7 +21,7 @@ script:
 
 deploy:
   provider: script
-  script: cd docker && docker login -u mirnylab -p $DOCKER_PASSWORD && bash deploy.sh && cd ..
+  script: cd docker && docker login -u mirnylab -p $DOCKER_PASSWORD && bash deploy.sh
   on:
     repo: mirnylab/distiller-nf
     branch: master
