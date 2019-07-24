@@ -8,16 +8,17 @@ env:
 services:
   - docker
 
-# before_install:
-#   - docker pull mirnylab/distiller_env:latest
+before_install:
+  - docker pull mirnylab/distiller_env:latest
 
-# install:
-#   - curl -fsSL get.nextflow.io | bash 
-#   - export PATH="`pwd`:${PATH}"
+install:
+  - curl -fsSL get.nextflow.io | bash 
+  - export PATH="`pwd`:${PATH}"
 
-# script:
-#   - bash setup_test.sh
-#   - nextflow distiller.nf -params-file ./test/test_project.yml
+script:
+  - echo "done"
+  # - bash setup_test.sh
+  # - nextflow distiller.nf -params-file ./test/test_project.yml
 
 deploy:
   provider: script
