@@ -6,18 +6,18 @@ env:
   - secure: "SZFOs3TbNtWI1byBqf6pvbtUjjWWkGLEQ2kSNVaUfazKlICF70vtsX8DefOxplPlU304EvIueyFT5m7ZlisONIp0Pkzt52bEIxP6gL8wtveZAXQ7QcI4ym8D9U37dwVSV9r2tGKF1verzA2F7qaS8dwTzVrqHAVmOOOqEwIgMnv23lCh1eFvypOsFBcZcE/CaVp3ziH7RSzBx9SCUi9OR7wDcVVQQBoa/NLKV6xANysw1lzJbfg3VfRp5yppOCjJCk0WxhhD3bfvL5iU0V19kLjBjSoXYLrvXViNn+vAOitM+JWjdrzCUmMIKHYUUo0aqhEg9WhgSr2SE/3/I4IaKsxhUm3LU65un7KOzib1igTIrHZ4565epNIshLsoRAjXGQOFIv6JOUD1zeIwLTz/HqvWJSURneQDTbpCUIl1qHQ5ld5wXzl+lbuO9Ps0QKrvGEJPc9WF+XNQsj27pFZyU2Z8FbmYWi5OvNhr07Rwd1OzHjmFfq39M3niiZ/eqNrUuzZw958hoBa2N8yvkkN8X12jPFrQgxlhs8G+5AtB3Y78I3mIOEgjsfLlbhqAdN11LszoA2KbWu+uJbE6F2hxg2h/5xWZ5xl/Ur3i23/3aOXOz2csK39vSVRr2yDcuCfEy9vK6NV3Hrpoh95flF9SRR9yYV7AFaS2RlfSYiY2cag="
 
 services:
-    - docker
+  - docker
 
-before_install:
-    - docker pull mirnylab/distiller_env:latest
+# before_install:
+#   - docker pull mirnylab/distiller_env:latest
 
-install:
-    - curl -fsSL get.nextflow.io | bash 
-    - export PATH="`pwd`:${PATH}"
+# install:
+#   - curl -fsSL get.nextflow.io | bash 
+#   - export PATH="`pwd`:${PATH}"
 
-script:
-    - bash setup_test.sh
-    - nextflow distiller.nf -params-file ./test/test_project.yml
+# script:
+#   - bash setup_test.sh
+#   - nextflow distiller.nf -params-file ./test/test_project.yml
 
 deploy:
   provider: script
@@ -25,7 +25,7 @@ deploy:
     - echo "$DOCKER_PASSWORD" | docker login -u mirnylab --password-stdin
     - docker build -t mirnylab/distiller_env:latest .
     - docker images
-    - version=$(cat ./VERSION | sed -E "s/\s*version\s*=\s*'(.*)'\s*$/\1/")
+    - version=$(cat ./VERSION | sed -nre 's/^[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p')
     - docker tag mirnylab/distiller_env:latest mirnylab/distiller_env:$version
     - docker push mirnylab/distiller_env:latest
     - docker push mirnylab/distiller_env:$version
