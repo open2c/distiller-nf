@@ -17,8 +17,8 @@ trap cleanup EXIT
 
 # bop it
 docker build -t $USERNAME/$IMAGE:latest . 
-docker run -it mirnylab/distiller_env:latest apt list | sed 's/\x1b\[[0-9;]*m//g' | tee ./apt.list
-docker run -it mirnylab/distiller_env:latest conda list | tee ./conda.list
+docker run -it mirnylab/distiller_env:latest apt list | sed 's/\x1b\[[0-9;]*m//g' > ./apt.list
+docker run -it mirnylab/distiller_env:latest conda list > ./conda.list
 docker images
 
 # tag it
