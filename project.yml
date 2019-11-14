@@ -164,6 +164,9 @@ bin:
     # The lowest (base) resolution _must_ be the common denominator of all other
     # resolutions.
     resolutions:
+        - 10000000
+        - 5000000
+        - 2500000
         - 1000000
         - 500000
         - 250000

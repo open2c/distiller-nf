@@ -2,16 +2,27 @@ language: java
 
 sudo: required
 
+env:
+  - secure: pm/BGp4C4CoXSxD1XY5WD55myAYHVnXYfIC+Y1n1eZrgQbCAoOEu7w0zx+KpV5YVz6F9CJaNZy6mvPUPkFxVCaSPkVncRnzSMV3DO2cgkwRXagl8ra3V5GUupu3xg7Aji5cPQ2GG9HGpoElbPYLC5Z7Lqi5iPCRUu+n18uJDkav8S1+JMoWWANGxBfq+uvt0w3TEBicQhFiyolhXh8M754Uho5B3CUUWmM6qa00WY6c2GGA8BTqagJJteWikZCW6h3xntlpinL9w76muoP9oBjMc4cBhq+qU+zH1jygYK1Lo+2EKaBvT2VspvbGIg3frz/f10zSmE+dMLjkVgL3Dz4M4zPLYIlR9en7BxribC/lvgB4QgsedS/fYBobtUvOwiae4+dIlMpnvWW4ZCxZcYvHP1p+qqPQ87CUVP2g/nYnAJsbjGH90Q+4S2NI1pxq8GLXxCixCNGSBoSGN83dZQal7IkJk3Wjf4CyHSMZrM44H1bHcQ92fNYK6cO3nDr0UFUcEcfMJqnTDv3EROdjq2O2rGk9kH0GAk+ZnDhKpNg4+jM9FA1baGJOACaH6jS/xpL5S3/gBUgrURJYMUkKLFRhcT5O4JuWh6+UrVuRm2iZ0giYZnqEJpgakQIAGAjG4gfvdlgpMc5eWarHw3gtVmwSVttOBg5rnTIESFSfJXBc=
+
 services:
-    - docker
+  - docker
 
 before_install:
-    - docker pull mirnylab/distiller_env:latest
+  - cd docker && bash build.sh && bash tag.sh && cd ..
 
 install:
-    - curl -fsSL get.nextflow.io | bash 
-    - export PATH="`pwd`:${PATH}"
+  - curl -fsSL get.nextflow.io | bash 
+  - export PATH="`pwd`:${PATH}"
 
 script:
-    - bash setup_test.sh
-    - nextflow distiller.nf -params-file ./test/test_project.yml
+  - cd test && bash setup_test.sh && cd ..
+  - nextflow distiller.nf -params-file ./test/test_project.yml
+
+deploy:
+  provider: script
+  script: cd docker && bash deploy.sh
+  on:
+    repo: mirnylab/distiller-nf
+    branch: master
+    tags: true
