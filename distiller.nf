@@ -471,8 +471,8 @@ process map_parse_sort_chunks {
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
     touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam 
-    bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
-        ${keep_unparsed_bams_command} \
+    fastp --adapter_sequence=AGATCGGAAGAGCACACGTCTGAACTCCAGTCA -i ${fastq1} -I ${fastq2} --stdout - | \
+    bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} - ${keep_unparsed_bams_command} \
         | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
             ${parsing_options} \
             -c ${chrom_sizes} \
