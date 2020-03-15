@@ -19,7 +19,7 @@ Requirements:
 
 - java 8
 - [nextflow](https://www.nextflow.io/)
-- docker (should be able to run w/o root privileges, 
+- singularity or docker (the latter should be able to run w/o root privileges, 
 [tutorial](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04))
 
 To setup a new project, execute the following line in the project folder:
