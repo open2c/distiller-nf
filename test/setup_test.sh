@@ -18,7 +18,7 @@ if [[ ! "$TMPDATADIR" || ! -d "$TMPDATADIR" ]]; then
 fi
 
 # deletes the temp directory at exit
-function cleanup {      
+function cleanup {
     rm -rf "$TMPDATADIR"
     echo "Deleted temp directory $TMPDATADIR"
 }
@@ -27,7 +27,7 @@ trap cleanup EXIT
 
 
 cd ${TMPDATADIR}
-#curl -LkSs https://api.github.com/repos/mirnylab/distiller-test-data/tarball | tar -zxf - 
+#curl -LkSs https://api.github.com/repos/mirnylab/distiller-test-data/tarball | tar -zxf -
 wget -O - https://api.github.com/repos/mirnylab/distiller-test-data/tarball | tar xvz
 # cd to the first (and the only) folder that was extracted from the tarball
 cd $(ls -d */|head -n 1)
