@@ -475,9 +475,9 @@ process map_parse_sort_chunks {
         touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
 
         fastp --adapter_sequence=AGATCGGAAGAGCACACGTCTGAACTCCAGTCA --adapter_sequence_r2=AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT \
-        --thread ${bwa_threads} -q 15 -i ${fastq1} -I ${fastq2} --stdout \
-              | bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} -
-                      ${keep_unparsed_bams_command} \
+        --json /dev/null --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html \
+        --thread ${bwa_threads} -q 15 \-i ${fastq1} -I ${fastq2} --stdout \
+              | bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} - ${keep_unparsed_bams_command} \
                       | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
                           ${parsing_options} \
                           -c ${chrom_sizes} \
