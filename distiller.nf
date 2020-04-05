@@ -478,6 +478,7 @@ process map_parse_sort_chunks {
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
     touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
+    touch fastp.html
 
     ${mapping_command} \
     | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
@@ -488,9 +489,8 @@ process map_parse_sort_chunks {
                      --tmpdir \$TASK_TMP_DIR \
       | cat
 
-    try{
-        mv fastp.html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html
-    }
+    mv fastp.html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html
+
     rm -rf \$TASK_TMP_DIR
     """
 
