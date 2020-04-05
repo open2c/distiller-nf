@@ -31,7 +31,7 @@ cd ${TMPDATADIR}
 wget -O - https://api.github.com/repos/mirnylab/distiller-test-data/tarball | tar xvz
 # cd to the first (and the only) folder that was extracted from the tarball
 cd $(ls -d */|head -n 1)
-mv -n ./test/genome ${PROJECT_DIR}
-mv -n ./test/fastq ${PROJECT_DIR}
+mv -n ./genome ${PROJECT_DIR}
+mv -n ./fastq ${PROJECT_DIR}
 
 cd ${PROJECT_DIR}
