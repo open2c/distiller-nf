@@ -447,7 +447,7 @@ process map_parse_sort_chunks {
     set library, run, chunk,
         "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix}",
         "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam" into LIB_RUN_CHUNK_PAIRSAMS
-        file("${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html") optional true
+        file("${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html") optional true into local_truncate_chunk_fastqs 
 
     script:
     // additional mapping options or empty-line
