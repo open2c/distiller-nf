@@ -472,18 +472,18 @@ process map_parse_sort_chunks {
 
     def mapping_command = (
         params['map'].get('trim','false').toBoolean() ?
-        "fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | \\
-        bwa mem \\
-        -p \\
-        -t ${bwa_threads} \\
-        ${mapping_options} \\
-        -SP ${bwa_index_base} \\
-        - ${keep_unparsed_bams_command} | " : \\
-            "bwa mem
-            -t ${bwa_threads} \\
-            ${mapping_options} \\
-            -SP ${bwa_index_base} \\
-            ${fastq1} ${fastq2} \\
+        "fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | \
+        bwa mem \
+        -p \
+        -t ${bwa_threads} \
+        ${mapping_options} \
+        -SP ${bwa_index_base} \
+        - ${keep_unparsed_bams_command} | " : "\
+            bwa mem \
+            -t ${bwa_threads} \
+            ${mapping_options} \
+            -SP ${bwa_index_base} \
+            ${fastq1} ${fastq2} \
             ${keep_unparsed_bams_command}  | " )
 
 
