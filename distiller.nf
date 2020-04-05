@@ -451,6 +451,7 @@ process map_parse_sort_chunks {
     script:
     // additional mapping options or empty-line
     def mapping_options = params['map'].get('mapping_options','')
+    def trim_options = params['map'].get('trim_options','')
 
     def dropsam_flag = params['parse'].get('make_pairsam','false').toBoolean() ? '' : '--drop-sam'
     def dropreadid_flag = params['parse'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
@@ -460,31 +461,21 @@ process map_parse_sort_chunks {
         "| tee >(samtools view -bS > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam)" : "" )
     def parsing_options = params['parse'].get('parsing_options','')
 
-    //def bwa_threads = Math.max(1,
-    //                      ((((task.cpus as int)*0.6).round()) as int))
-    //def sorting_threads = Math.max(1, (task.cpus as int)-bwa_threads)
-    // Since bwa and sort operate on the same pipe, they do not use their
-    // cores simultaneously and it is safe to give both of them all cores.
-    def bwa_threads = (task.cpus as int)
-    def sorting_threads = (task.cpus as int)
-
-    def trim_options = params['map'].get('trim_options','')
-
     def mapping_command = (
         params['map'].get('trim_options','').toBoolean() ?
-        "fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | \
-        bwa mem \
-        -p \
-        -t ${bwa_threads} \
+        "bwa mem \
+        -t task.cpus \
         ${mapping_options} \
         -SP ${bwa_index_base} \
-        - ${keep_unparsed_bams_command}" : " \
-            bwa mem \
-            -t ${bwa_threads} \
-            ${mapping_options} \
-            -SP ${bwa_index_base} \
-            ${fastq1} ${fastq2} \
-            ${keep_unparsed_bams_command}" )
+        ${fastq1} ${fastq2} \
+        ${keep_unparsed_bams_command}" : " \
+        fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | \
+        bwa mem \
+        -p \
+        -t task.cpus \
+        ${mapping_options} \
+        -SP ${bwa_index_base} \
+        - ${keep_unparsed_bams_command}")
 
 
     """
@@ -495,7 +486,7 @@ process map_parse_sort_chunks {
     | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
       ${parsing_options} \
       -c ${chrom_sizes} \
-      | pairtools sort --nproc ${sorting_threads} \
+      | pairtools sort --nproc task.cpus \
                      -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
                      --tmpdir \$TASK_TMP_DIR \
       | cat
