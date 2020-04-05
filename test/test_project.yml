@@ -103,8 +103,7 @@ map:
     # low complexity filter is disabled, unpaired FASTQ reads and those that fail filters
     # are discarded, assumes TruSeq adapters, output is interleaved into bwa
     # record1-R1 -> record1-R2 -> record2-R1 -> record2-R2 -> record3-R1 -> record3-R2 ...
-    trim: True
-    trim_options: '-q 20 --json /dev/null --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html'
+    trim_options: '-q 20 --json /dev/null --html c.html'
 
 # Control how read alignments are converted ('parsed') into Hi-C pairs.
 parse:
