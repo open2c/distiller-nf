@@ -460,11 +460,13 @@ process map_parse_sort_chunks {
         params['parse'].get('keep_unparsed_bams','false').toBoolean() ?
         "| tee >(samtools view -bS > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam)" : "" )
     def parsing_options = params['parse'].get('parsing_options','')
+    def bwa_threads = (task.cpus as int)
+    def sorting_threads = (task.cpus as int)
 
     def mapping_command = (
         params['map'].get('trim_options','').toBoolean() ?
         "bwa mem \
-        -t task.cpus \
+        -t ${bwa_threads} \
         ${mapping_options} \
         -SP ${bwa_index_base} \
         ${fastq1} ${fastq2} \
@@ -472,7 +474,7 @@ process map_parse_sort_chunks {
         fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | \
         bwa mem \
         -p \
-        -t task.cpus \
+        -t ${sorting_threads} \
         ${mapping_options} \
         -SP ${bwa_index_base} \
         - ${keep_unparsed_bams_command}")
