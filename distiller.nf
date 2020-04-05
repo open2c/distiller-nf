@@ -478,13 +478,13 @@ process map_parse_sort_chunks {
         -t ${bwa_threads} \
         ${mapping_options} \
         -SP ${bwa_index_base} \
-        - ${keep_unparsed_bams_command} | " : "\
+        - ${keep_unparsed_bams_command}" : "\
             bwa mem \
             -t ${bwa_threads} \
             ${mapping_options} \
             -SP ${bwa_index_base} \
             ${fastq1} ${fastq2} \
-            ${keep_unparsed_bams_command}  | " )
+            ${keep_unparsed_bams_command}" )
 
 
     """
@@ -492,10 +492,10 @@ process map_parse_sort_chunks {
     touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
 
     ${mapping_command} \
-    pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+    | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
       ${parsing_options} \
       -c ${chrom_sizes} \
-      pairtools sort --nproc ${sorting_threads} \
+      | pairtools sort --nproc ${sorting_threads} \
                      -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
                      --tmpdir \$TASK_TMP_DIR \
       | cat
