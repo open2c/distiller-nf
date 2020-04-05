@@ -447,6 +447,7 @@ process map_parse_sort_chunks {
     set library, run, chunk,
         "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix}",
         "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam" into LIB_RUN_CHUNK_PAIRSAMS
+        file("${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html") optional true
 
     script:
     // additional mapping options or empty-line
@@ -465,19 +466,13 @@ process map_parse_sort_chunks {
 
     def mapping_command = (
         params['map'].get('trim_options','').toBoolean() ?
-        "bwa mem \
-        -t ${bwa_threads} \
-        ${mapping_options} \
-        -SP ${bwa_index_base} \
-        ${fastq1} ${fastq2} \
-        ${keep_unparsed_bams_command}" : " \
-        fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | \
-        bwa mem \
-        -p \
-        -t ${bwa_threads} \
-        ${mapping_options} \
-        -SP ${bwa_index_base} \
-        - ${keep_unparsed_bams_command}")
+        "bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
+        ${fastq1} ${fastq2} ${keep_unparsed_bams_command}" : \
+        \
+        "fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | \
+        bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
+        - ${keep_unparsed_bams_command}"
+        )
 
 
     """
@@ -493,6 +488,7 @@ process map_parse_sort_chunks {
                      --tmpdir \$TASK_TMP_DIR \
       | cat
 
+    mv fastp.html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html
     rm -rf \$TASK_TMP_DIR
     """
 
