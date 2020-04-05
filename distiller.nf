@@ -451,7 +451,7 @@ process map_parse_sort_chunks {
     script:
     // additional mapping options or empty-line
     def mapping_options = params['map'].get('mapping_options','')
-    def trim = params['map'].get('trim','')
+    def trim_options = params['map'].get('trim','')
 
     def dropsam_flag = params['parse'].get('make_pairsam','false').toBoolean() ? '' : '--drop-sam'
     def dropreadid_flag = params['parse'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
@@ -469,42 +469,38 @@ process map_parse_sort_chunks {
     def bwa_threads = (task.cpus as int)
     def sorting_threads = (task.cpus as int)
 
-    if(trim)
-        """
-        TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
-        touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
+    def trim = (
+        params['parse'].get('trim','false').toBoolean() ?
+        mapping_command1 = '-p'
+        mapping_command2 = '-'
+        "fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | " \
 
-        fastp --adapter_sequence=AGATCGGAAGAGCACACGTCTGAACTCCAGTCA --adapter_sequence_r2=AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT \
-        --json /dev/null --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html \
-        --thread ${bwa_threads} -q 15 -i ${fastq1} -I ${fastq2} --stdout \
-              | bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} - ${keep_unparsed_bams_command} \
-                      | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-                          ${parsing_options} \
-                          -c ${chrom_sizes} \
-                          | pairtools sort --nproc ${sorting_threads} \
-                                           -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
-                                           --tmpdir \$TASK_TMP_DIR \
-                          | cat
+    """
+    TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
+    touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
 
-        rm -rf \$TASK_TMP_DIR
-        """
-    else
-        """
-        TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
-        touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
-
-        bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
-            ${keep_unparsed_bams_command} \
-            | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-                ${parsing_options} \
-                -c ${chrom_sizes} \
-                | pairtools sort --nproc ${sorting_threads} \
-                                 -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
-                                 --tmpdir \$TASK_TMP_DIR \
+    bwa mem \\
+        ${mapping_command1} \\
+        -t ${bwa_threads} \\
+        ${mapping_options} \\
+        -SP ${bwa_index_base} \\
+        ${fastq1} ${fastq2} \\
+        ${mapping_command2} \\
+        ${keep_unparsed_bams_command} \\
+        | pairtools parse
+            ${dropsam_flag} \\
+            ${dropreadid_flag} \\
+            ${dropseq_flag} \\
+            ${parsing_options} \\
+            -c ${chrom_sizes} \\
+            | pairtools sort
+                --nproc ${sorting_threads} \\
+                -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \\
+                --tmpdir \$TASK_TMP_DIR \\
                 | cat
 
-        rm -rf \$TASK_TMP_DIR
-        """
+    rm -rf \$TASK_TMP_DIR
+    """
 
 }
 

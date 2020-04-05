@@ -112,12 +112,11 @@ map:
     # Specify extra BWA mapping options.
     mapping_options: ''
 
-    # If 'trim' is True, fastq reads will be trimmed with fastp.
-    # Default fastp params are used, phred quality >=Q15 filter, length filter is enabled, 
-    # low complexity filter is disabled, unpaired FASTQ reads and those that fail filters 
-    # are discarded, assumes TruSeq adapters, output is interleaved into bwa 
+    # Default fastp params are used, phred quality >=Q15 filter, length filter is enabled,
+    # low complexity filter is disabled, unpaired FASTQ reads and those that fail filters
+    # are discarded, assumes TruSeq adapters, output is interleaved into bwa
     # record1-R1 -> record1-R2 -> record2-R1 -> record2-R2 -> record3-R1 -> record3-R2 ...
-    trim: False
+    trim_options: ''
 
 # Control how read alignments are converted ('parsed') into Hi-C pairs.
 parse:
