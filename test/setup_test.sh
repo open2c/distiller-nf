@@ -1,4 +1,4 @@
-#!/bin/bash    
+#!/bin/bash
 
 # The goal of this script is to download data files hosted an a github repo.
 # The script has to work both on Linux and MacOS so we could not use some

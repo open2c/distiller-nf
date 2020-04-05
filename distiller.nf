@@ -491,18 +491,14 @@ process map_parse_sort_chunks {
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
     touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
 
-    ${mapping_command}
-    pairtools parse
-        ${dropsam_flag} \
-        ${dropreadid_flag} \
-        ${dropseq_flag} \
-        ${parsing_options} \
-        -c ${chrom_sizes} \
-        | pairtools sort
-            --nproc ${sorting_threads} \
-            -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
-            --tmpdir \$TASK_TMP_DIR \
-            | cat
+    ${mapping_command} \
+    pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+      ${parsing_options} \
+      -c ${chrom_sizes} \
+      pairtools sort --nproc ${sorting_threads} \
+                     -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
+                     --tmpdir \$TASK_TMP_DIR \
+      | cat
 
     rm -rf \$TASK_TMP_DIR
     """
