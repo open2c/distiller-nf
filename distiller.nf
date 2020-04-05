@@ -471,9 +471,9 @@ process map_parse_sort_chunks {
 
     def trim = (
         params['parse'].get('trim','false').toBoolean() ?
-        mapping_command1 = '-p'
-        mapping_command2 = '-'
-        "fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | " \
+        mapping_command1 = '-p' \
+        mapping_command2 = '-' \
+        "fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | ")
 
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)

@@ -19,7 +19,7 @@ Requirements:
 
 - java 8
 - [nextflow](https://www.nextflow.io/)
-- docker (should be able to run w/o root privileges, 
+- docker (should be able to run w/o root privileges,
 [tutorial](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04))
 
 To setup a new project, execute the following line in the project folder:
@@ -58,7 +58,6 @@ In a new project folder, execute:
 
 ```sh
 $ nextflow clone mirnylab/distiller-nf  ./
-$ bash setup_test.sh
-$ nextflow distiller.nf -params-file ./test/test_project.yml 
+$ bash /test/setup_test.sh
+$ nextflow distiller.nf -params-file ./test/test_project.yml
 ```
-
