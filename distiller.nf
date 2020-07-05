@@ -469,7 +469,8 @@ process map_parse_sort_chunks {
         "bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
         ${fastq1} ${fastq2} ${keep_unparsed_bams_command}" : \
         \
-        "fastp ${trim_options} -i ${fastq1} -I ${fastq2} --stdout | \
+        "fastp ${trim_options} --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html \
+        -i ${fastq1} -I ${fastq2} --stdout | \
         bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
         - ${keep_unparsed_bams_command}"
         )
@@ -477,8 +478,7 @@ process map_parse_sort_chunks {
 
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
-    touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
-    touch fastp.html
+    touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.ba
 
     ${mapping_command} \
     | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
@@ -488,9 +488,7 @@ process map_parse_sort_chunks {
                      -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
                      --tmpdir \$TASK_TMP_DIR \
       | cat
-
-    mv fastp.html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html
-
+ 
     rm -rf \$TASK_TMP_DIR
     """
 
