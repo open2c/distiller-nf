@@ -452,7 +452,7 @@ process map_parse_sort_chunks {
     script:
     // additional mapping options or empty-line
     def mapping_options = params['map'].get('mapping_options','')
-    def trim_optionz = params['map'].get('trim_options','')
+    def trim_options = params['map'].get('trim_options','')
 
     def dropsam_flag = params['parse'].get('make_pairsam','false').toBoolean() ? '' : '--drop-sam'
     def dropreadid_flag = params['parse'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
@@ -465,14 +465,14 @@ process map_parse_sort_chunks {
     def sorting_threads = (task.cpus as int)
 
     def mapping_command = (
-        params['map'].get('trim_options','').toBoolean() ?
-        "bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
-        ${fastq1} ${fastq2} ${keep_unparsed_bams_command}" : \
-        \
-        "fastp ${trim_optionz} --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html \
+        trim_options ? 
+        "fastp ${trim_options} --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html \
         -i ${fastq1} -I ${fastq2} --stdout | \
         bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
-        - ${keep_unparsed_bams_command}" 
+        - ${keep_unparsed_bams_command}" : \
+        \
+        "bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
+        ${fastq1} ${fastq2} ${keep_unparsed_bams_command}"
         )
 
 
