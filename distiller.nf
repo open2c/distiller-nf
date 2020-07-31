@@ -448,6 +448,7 @@ process map_parse_sort_chunks {
         "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix}",
         "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam" into LIB_RUN_CHUNK_PAIRSAMS
         file("${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html") optional true
+        file("${library}.${run}.${ASSEMBLY_NAME}.${chunk}.json") optional true
 
     script:
     // additional mapping options or empty-line
@@ -466,7 +467,9 @@ process map_parse_sort_chunks {
 
     def mapping_command = (
         trim_options ? 
-        "fastp ${trim_options} --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html \
+        "fastp ${trim_options} \
+        --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.json \
+        --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.html \
         -i ${fastq1} -I ${fastq2} --stdout | \
         bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
         - ${keep_unparsed_bams_command}" : \

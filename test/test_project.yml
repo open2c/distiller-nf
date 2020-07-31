@@ -97,8 +97,10 @@ map:
 
     # Specify extra BWA mapping options.
     mapping_options: '-v 3'
-
-    # If 'trim_options'is empty, trimming by fastp will be skipped.
+   
+    # Specify fastp trim options.
+    #i.e. parameters
+    #--detect_adapter_for_pe -q 15.
     trim_options: '-q 20 --json /dev/null'
 
 # Control how read alignments are converted ('parsed') into Hi-C pairs.
