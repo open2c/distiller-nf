@@ -23,6 +23,6 @@ deploy:
   provider: script
   script: cd docker && bash deploy.sh
   on:
-    repo: mirnylab/distiller-nf
+    repo: open2c/distiller-nf
     branch: master
     tags: true
