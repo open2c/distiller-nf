@@ -6,8 +6,7 @@
 # necessary files via a temp folder.
 set -ex
 
-PROJECT_DIR=$(pwd)
-mkdir -p ${PROJECT_DIR}
+DISTILLER_DIR=$(pwd)
 
 TMPDATADIR=`mktemp -d 2>/dev/null || mktemp -d -t 'TMPDATADIR'`
 
@@ -31,7 +30,7 @@ cd ${TMPDATADIR}
 wget -O - https://api.github.com/repos/open2c/distiller-test-data/tarball | tar xvz
 # cd to the first (and the only) folder that was extracted from the tarball
 cd $(ls -d */|head -n 1)
-mv -n ./genome ${PROJECT_DIR}/test
-mv -n ./fastq ${PROJECT_DIR}/test
+mv -n ./genome ${DISTILLER_DIR}/test
+mv -n ./fastq ${DISTILLER_DIR}/test
 
 cd ${PROJECT_DIR}
