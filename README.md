@@ -57,8 +57,7 @@ $ nextflow run distiller.nf -params-file project.yml -profile custom --custom_co
 In a new project folder, execute:
 
 ```sh
-$ nextflow clone open2c/distiller-nf  ./
-$ bash setup_test.sh
-$ nextflow distiller.nf -params-file ./test/test_project.yml 
+$ nextflow clone mirnylab/distiller-nf  ./
+$ bash ./test/setup_test.sh
+$ nextflow distiller.nf -params-file ./test/test_project.yml
 ```
-

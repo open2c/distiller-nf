@@ -29,8 +29,8 @@ switch(params.compression_format) {
         break
 }
 
-boolean isSingleFile(object) {    
-    object instanceof Path  
+boolean isSingleFile(object) {
+    object instanceof Path
 }
 
 String getOutputDir(output_type) {
@@ -40,17 +40,17 @@ String getOutputDir(output_type) {
 Boolean needsDownloading(query) {
     return (
         (query instanceof String) && (
-           query.startsWith('sra:') 
+           query.startsWith('sra:')
            || query.startsWith('http://')
            || query.startsWith('https://')
-           || query.startsWith('ftp://') 
+           || query.startsWith('ftp://')
        )
    )
 }
 
 String checkLeftRightChunk(left_chunk_fname,right_chunk_fname) {
-    // checks if the chunk index is the same 
-    // both for left and right chunks and returns 
+    // checks if the chunk index is the same
+    // both for left and right chunks and returns
     // that chunk index:
     // left by design:  ${library}.${run}.*.1.fastq.gz
     // right by design: ${library}.${run}.*.2.fastq.gz
@@ -102,10 +102,10 @@ LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK = Channel.create()
 LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK = Channel.create()
 LIB_RUN_SOURCES_LOCAL_NO_PROCESSING = Channel.create()
 LIB_RUN_SOURCES.choice(
-    LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK, 
-    LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK, 
+    LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK,
+    LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK,
     LIB_RUN_SOURCES_LOCAL_NO_PROCESSING) {
-    a -> ( ( needsDownloading(a[2]) || needsDownloading(a[3]) ) 
+    a -> ( ( needsDownloading(a[2]) || needsDownloading(a[3]) )
             ? 0
             : ( (    (params['map'].get('chunksize', 0) > 0)
                   || (params['input'].get('truncate_fastq_reads', 0) > 0)
@@ -145,7 +145,7 @@ def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1) 
 }
 
 
-def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0, 
+def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
                            chunksize=0, threads=1) {
     def cmd = ""
 
@@ -156,9 +156,9 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
     def srr_end = -1
 
     if ( sra_query.contains('start=') ) {
-        srr_start = ( sra_query =~ /start=(\d+)/ )[0][1] 
-    } 
-        
+        srr_start = ( sra_query =~ /start=(\d+)/ )[0][1]
+    }
+
     if ( truncate_fastq_reads ) {
         srr_end = srr_start + truncate_fastq_reads
     } else if ( sra_query.contains('end=') ) {
@@ -196,7 +196,7 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
                      split -l ${chunk_lines} --numeric-suffixes=1 \
                      --filter 'bgzip -c -@ ${split_bgzip_threads} > \$FILE.${side}.fastq.gz' - \
                      ${library}.${run}.
-                rm ${library}.${run}.${side}.fastq.gz 
+                rm ${library}.${run}.${side}.fastq.gz
             """
         }
     } else {
@@ -211,7 +211,7 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
 }
 
 
-String fastqDownloadTruncateCmd(query, library, run, side, 
+String fastqDownloadTruncateCmd(query, library, run, side,
                                 truncate_fastq_reads=0, chunksize=0, threads=2) {
     def cmd = ''
 
@@ -239,7 +239,7 @@ String fastqDownloadTruncateCmd(query, library, run, side,
 }
 
 
-String fastqLocalTruncateChunkCmd(path, library, run, side, 
+String fastqLocalTruncateChunkCmd(path, library, run, side,
                                   truncate_fastq_reads=0, chunksize=0, threads=1) {
     def cmd = ""
 
@@ -250,7 +250,7 @@ String fastqLocalTruncateChunkCmd(path, library, run, side,
     if (truncate_lines > 0) {
         cmd = """head -n ${truncate_lines} < <( zcat ${path} ) \
                  | bgzip -c -@ ${bgzip_threads} \
-                 >  ${library}.${run}.0.${side}.fastq.gz 
+                 >  ${library}.${run}.0.${side}.fastq.gz
         """
     } else if (chunk_lines > 0) {
         cmd = """
@@ -274,17 +274,17 @@ process download_truncate_chunk_fastqs{
     storeDir getOutputDir('processed_fastqs')
 
     input:
-    set val(library), val(run), 
+    set val(library), val(run),
         val(query1), val(query2) from LIB_RUN_SOURCES_DOWNLOAD_TRUNCATE_CHUNK
-     
+
     output:
-    set library, run, 
-        "${library}.${run}.*.1.fastq.gz", 
+    set library, run,
+        "${library}.${run}.*.1.fastq.gz",
         "${library}.${run}.*.2.fastq.gz" into LIB_RUN_CHUNK_DOWNLOADED_PROCESSED
- 
+
     script:
     def truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
-    def chunksize = params['map'].get('chunksize', 0) 
+    def chunksize = params['map'].get('chunksize', 0)
 
     def download_truncate_chunk_cmd1 = ""
     def download_truncate_chunk_cmd2 = ""
@@ -293,7 +293,7 @@ process download_truncate_chunk_fastqs{
         if ( !(( query2 == null) || (! query2.toBoolean())) ) {
             error "Runs defined with SRA should only contain one line"
         }
-        
+
         download_truncate_chunk_cmd1 += sraDownloadTruncateCmd(
             query1, library, run, truncate_fastq_reads, chunksize, task.cpus)
 
@@ -317,18 +317,18 @@ process local_truncate_chunk_fastqs{
     storeDir getOutputDir('processed_fastqs')
 
     input:
-    set val(library), val(run), 
+    set val(library), val(run),
         file(fastq1), file(fastq2) from LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK
-     
+
     output:
-    set library, run, 
-        "${library}.${run}.*.1.fastq.gz", 
+    set library, run,
+        "${library}.${run}.*.1.fastq.gz",
         "${library}.${run}.*.2.fastq.gz" into LIB_RUN_CHUNK_LOCAL_PROCESSED
- 
+
     script:
 
     def truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
-    def chunksize = params['map'].get('chunksize', 0) 
+    def chunksize = params['map'].get('chunksize', 0)
 
     def truncate_chunk_cmd1 = fastqLocalTruncateChunkCmd(
         fastq1, library, run, 1, truncate_fastq_reads, chunksize, task.cpus)
@@ -342,7 +342,7 @@ process local_truncate_chunk_fastqs{
 }
 
 
-// use new transpose operator 
+// use new transpose operator
 // to undo 'groupBy' of 'chunk_fastqs' process:
 // https://github.com/nextflow-io/nextflow/issues/440
 LIB_RUN_CHUNK_DOWNLOADED_PROCESSED
@@ -389,12 +389,12 @@ LIB_RUN_CHUNK_FASTQS
 
 LIB_RUN_CHUNK_FASTQS_FOR_QC
     .filter { it -> params.get('do_fastqc', 'false').toBoolean() }
-    .map{ v -> [v[0], v[1], v[2], [[1,file(v[3])], [2,file(v[4])]]]} 
-    .flatMap{ 
-        vs -> vs[3].collect{ 
+    .map{ v -> [v[0], v[1], v[2], [[1,file(v[3])], [2,file(v[4])]]]}
+    .flatMap{
+        vs -> vs[3].collect{
             it -> [vs[0],
-                   vs[1], 
-                   vs[2], 
+                   vs[1],
+                   vs[2],
                    it[0],
                    it[1]] } }
     .set {LIB_RUN_CHUNK_SIDE_FASTQS_FOR_QC}
@@ -405,12 +405,12 @@ process fastqc{
     storeDir getOutputDir('fastqc')
 
     input:
-    set val(library), val(run), val(chunk), val(side), 
+    set val(library), val(run), val(chunk), val(side),
         file(fastq) from LIB_RUN_CHUNK_SIDE_FASTQS_FOR_QC
 
     output:
-    set library, run, chunk, side,  
-        "${library}.${run}.${chunk}.${side}_fastqc.html", 
+    set library, run, chunk, side,
+        "${library}.${run}.${chunk}.${side}_fastqc.html",
         "${library}.${run}.${chunk}.${side}_fastqc.zip" into LIB_RUN_CHUNK_SIDE_QCS
 
     """
@@ -419,7 +419,7 @@ process fastqc{
     fastqc --threads ${task.cpus} -o ./ -f fastq \$TASK_TMP_DIR/${library}.${run}.${chunk}.${side}.fastq.gz
     rm -r \$TASK_TMP_DIR
     """
-          
+
 }
 
 
@@ -438,53 +438,63 @@ BWA_INDEX = Channel.from([[
 process map_parse_sort_chunks {
     tag "library:${library} run:${run} chunk:${chunk}"
     storeDir getOutputDir('mapped_parsed_sorted_chunks')
- 
+
     input:
     set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQS
     set val(bwa_index_base), file(bwa_index_files) from BWA_INDEX.first()
     file(chrom_sizes) from CHROM_SIZES_FOR_PARSING.first()
-     
+
     output:
     set library, run, chunk,
         "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix}",
         "${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam" into LIB_RUN_CHUNK_PAIRSAMS
+        file("${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html") optional true
+        file("${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json") optional true
 
     script:
     // additional mapping options or empty-line
     def mapping_options = params['map'].get('mapping_options','')
+    def trim_options = params['map'].get('trim_options','')
 
     def dropsam_flag = params['parse'].get('make_pairsam','false').toBoolean() ? '' : '--drop-sam'
     def dropreadid_flag = params['parse'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
     def dropseq_flag = params['parse'].get('drop_seq','false').toBoolean() ? '--drop-seq' : ''
-    def keep_unparsed_bams_command = ( 
-        params['parse'].get('keep_unparsed_bams','false').toBoolean() ? 
+    def keep_unparsed_bams_command = (
+        params['parse'].get('keep_unparsed_bams','false').toBoolean() ?
         "| tee >(samtools view -bS > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam)" : "" )
     def parsing_options = params['parse'].get('parsing_options','')
-
-    //def bwa_threads = Math.max(1, 
-    //                      ((((task.cpus as int)*0.6).round()) as int))
-    //def sorting_threads = Math.max(1, (task.cpus as int)-bwa_threads)
-    // Since bwa and sort operate on the same pipe, they do not use their 
-    // cores simultaneously and it is safe to give both of them all cores.
     def bwa_threads = (task.cpus as int)
     def sorting_threads = (task.cpus as int)
 
+    def mapping_command = (
+        trim_options ? 
+        "fastp ${trim_options} \
+        --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json \
+        --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html \
+        -i ${fastq1} -I ${fastq2} --stdout | \
+        bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
+        - ${keep_unparsed_bams_command}" : \
+        \
+        "bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
+        ${fastq1} ${fastq2} ${keep_unparsed_bams_command}"
+        )
+
+
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
-    touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam 
-    bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} ${fastq1} ${fastq2} \
-        ${keep_unparsed_bams_command} \
-        | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
-            ${parsing_options} \
-            -c ${chrom_sizes} \
-            | pairtools sort --nproc ${sorting_threads} \
-                             -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
-                             --tmpdir \$TASK_TMP_DIR \
-            | cat
+    touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
 
+    ${mapping_command} \
+    | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+      ${parsing_options} \
+      -c ${chrom_sizes} \
+      | pairtools sort --nproc ${sorting_threads} \
+                     -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
+                     --tmpdir \$TASK_TMP_DIR \
+      | cat
+ 
     rm -rf \$TASK_TMP_DIR
-
-    """        
+    """
 
 }
 
@@ -500,29 +510,29 @@ LIB_RUN_CHUNK_PAIRSAMS
 process merge_dedup_splitbam {
     tag "library:${library}"
     storeDir getOutputDir('pairs_library')
- 
+
     input:
     set val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_MERGE
-     
+
     output:
-    set library, "${library}.${ASSEMBLY_NAME}.nodups.pairs.gz", 
-                 "${library}.${ASSEMBLY_NAME}.nodups.pairs.gz.px2", 
+    set library, "${library}.${ASSEMBLY_NAME}.nodups.pairs.gz",
+                 "${library}.${ASSEMBLY_NAME}.nodups.pairs.gz.px2",
                  "${library}.${ASSEMBLY_NAME}.nodups.bam",
-                 "${library}.${ASSEMBLY_NAME}.dups.pairs.gz", 
-                 "${library}.${ASSEMBLY_NAME}.dups.bam", 
-                 "${library}.${ASSEMBLY_NAME}.unmapped.pairs.gz", 
+                 "${library}.${ASSEMBLY_NAME}.dups.pairs.gz",
+                 "${library}.${ASSEMBLY_NAME}.dups.bam",
+                 "${library}.${ASSEMBLY_NAME}.unmapped.pairs.gz",
                  "${library}.${ASSEMBLY_NAME}.unmapped.bam" into LIB_PAIRS_BAMS
     set library, "${library}.${ASSEMBLY_NAME}.dedup.stats" into LIB_DEDUP_STATS
- 
+
     script:
     def make_pairsam = params['parse'].get('make_pairsam','false').toBoolean()
-    def merge_command = ( 
+    def merge_command = (
         isSingleFile(run_pairsam) ?
-        "${decompress_command} ${run_pairsam}" : 
+        "${decompress_command} ${run_pairsam}" :
         "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir \$TASK_TMP_DIR"
     )
 
-    if(make_pairsam) 
+    if(make_pairsam)
         """
         TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
 
@@ -550,7 +560,7 @@ process merge_dedup_splitbam {
         rm -rf \$TASK_TMP_DIR
         pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
         """
-    else 
+    else
         """
         TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
 
@@ -583,7 +593,7 @@ FILTERS
 
 /*
  * Bin indexed .pairs into .cool matrices.
- */ 
+ */
 
 process bin_zoom_library_pairs{
     tag "library:${library} filter:${filter_name}"
@@ -594,7 +604,7 @@ process bin_zoom_library_pairs{
         file(chrom_sizes) from CHROM_SIZES_FOR_BINNING.first()
 
     output:
-        set library, filter_name, "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool", 
+        set library, filter_name, "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool",
             "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool" into LIB_FILTER_COOLERS_ZOOMED
 
     script:
@@ -625,11 +635,11 @@ process bin_zoom_library_pairs{
 
 /*
  * Merge .cool matrices for library groups.
- */ 
+ */
 
 LIBRARY_GROUPS_FOR_COOLER_MERGE
     .combine(LIB_FILTER_COOLERS_ZOOMED)
-    .filter{ it[1].contains(it[2]) } 
+    .filter{ it[1].contains(it[2]) }
     .map {library_group, libraries, library, filter_name, single_res_clr, multires_clr -> tuple(library_group, filter_name, single_res_clr)}
     .groupTuple(by: [0, 1])
     .set { LIBGROUP_FILTER_COOLERS_TO_MERGE }
@@ -642,8 +652,8 @@ process merge_zoom_library_group_coolers{
         set val(library_group), val(filter_name), file(coolers) from LIBGROUP_FILTER_COOLERS_TO_MERGE
 
     output:
-        set library_group, filter_name, 
-            "${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool", 
+        set library_group, filter_name,
+            "${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool",
             "${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool" into LIBGROUP_FILTER_RES_COOLERS
 
     script:
@@ -670,7 +680,7 @@ process merge_zoom_library_group_coolers{
         --out ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool \
         --resolutions ${res_str} \
         ${balance_flag} \
-        ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool 
+        ${library_group}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool
     """
 
     """
@@ -682,12 +692,12 @@ process merge_zoom_library_group_coolers{
 
 /*
  * Merge .stats for library groups
- */ 
+ */
 
 
 LIBRARY_GROUPS_FOR_STATS_MERGE
     .combine(LIB_DEDUP_STATS)
-    .filter{ it[1].contains(it[2]) } 
+    .filter{ it[1].contains(it[2]) }
     .map {library_group, libraries, library, stats -> tuple(library_group, stats)}
     .groupTuple()
     .set { LIBGROUP_STATS_TO_MERGE }
@@ -696,10 +706,10 @@ LIBRARY_GROUPS_FOR_STATS_MERGE
 process merge_stats_libraries_into_groups {
     tag "library_group:${library_group}"
     publishDir path: getOutputDir('stats_library_group'), mode: "copy"
- 
+
     input:
     set val(library_group), file(stats) from LIBGROUP_STATS_TO_MERGE
-     
+
     output:
     set library_group, "${library_group}.${ASSEMBLY_NAME}.stats" into LIBGROUP_STATS
 
@@ -713,5 +723,3 @@ process merge_stats_libraries_into_groups {
         pairtools stats --merge ${stats} -o ${library_group}.${ASSEMBLY_NAME}.stats
         """
 }
-
-

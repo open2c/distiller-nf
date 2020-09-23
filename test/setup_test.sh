@@ -1,4 +1,4 @@
-#!/bin/bash    
+#!/bin/bash
 
 # The goal of this script is to download data files hosted an a github repo.
 # The script has to work both on Linux and MacOS so we could not use some
@@ -18,7 +18,7 @@ if [[ ! "$TMPDATADIR" || ! -d "$TMPDATADIR" ]]; then
 fi
 
 # deletes the temp directory at exit
-function cleanup {      
+function cleanup {
     rm -rf "$TMPDATADIR"
     echo "Deleted temp directory $TMPDATADIR"
 }
@@ -31,7 +31,7 @@ cd ${TMPDATADIR}
 wget -O - https://api.github.com/repos/open2c/distiller-test-data/tarball | tar xvz
 # cd to the first (and the only) folder that was extracted from the tarball
 cd $(ls -d */|head -n 1)
-mv -n ./genome ${PROJECT_DIR}
-mv -n ./fastq ${PROJECT_DIR}
+mv -n ./genome ${PROJECT_DIR}/test
+mv -n ./fastq ${PROJECT_DIR}/test
 
 cd ${PROJECT_DIR}

@@ -7,7 +7,7 @@
 #########################################
 
 
-    
+
 #######################################
 # provide paths to your raw input data (fastq-s):
 #######################################
@@ -15,7 +15,7 @@
 # -- a pairs of relative/absolute paths
 # -- sra:<SRA_NUMBER>, optionally followed by the indices of the first and
 # the last entry in the SRA in the form of "?start=<first>&end=<last>
-# [to implement] -- as a path to a folder with fastqs '<base_folder>', with the structure 
+# [to implement] -- as a path to a folder with fastqs '<base_folder>', with the structure
 # <base_folder>/<library_name>/<run_name>/, with each folder containing only
 # two fastq.gz files
 input:
@@ -74,8 +74,8 @@ input:
 
     # Specify a reference genome to align sequenced reads.
     # Provide the genome assembly name, a wildcard path to the BWA index files
-    # of the reference genome, and a tab-separated table with contig sizes 
-    # (known as "chrom.sizes"). The latter is used to specify the subset and the 
+    # of the reference genome, and a tab-separated table with contig sizes
+    # (known as "chrom.sizes"). The latter is used to specify the subset and the
     # order of contigs in a resulting contact map.
     genome:
         assembly_name: 'sacCer3'
@@ -88,24 +88,29 @@ do_fastqc: False
 # Control how reads are mapped to the reference genomes.
 map:
     # If 'chunksize' is provided, each input file gets split into multiple chunks,
-    # each mapped separately. Useful for mapping on clusters with many 
+    # each mapped separately. Useful for mapping on clusters with many
     # relatively weak nodes.
     # The optimal chunk size is defined by the balance between mapping and merging.
     # Smaller chunks (~30M) are better for clusters with many weak nodes,
     # however, having >~10 chunks per run slow down merging.
     # chunksize: 6000
-    
+
     # Specify extra BWA mapping options.
     mapping_options: '-v 3'
+   
+    # Specify fastp trim options.
+    #i.e. parameters
+    #--detect_adapter_for_pe -q 15.
+    trim_options: '-q 20 --json /dev/null'
 
 # Control how read alignments are converted ('parsed') into Hi-C pairs.
 parse:
-    # If 'make_pairsam' is True, parsed Hi-C pairs will store complete 
+    # If 'make_pairsam' is True, parsed Hi-C pairs will store complete
     # alignment records in the SAM format (the resulting hybrid between the
     # .pairs and .sam formats is called '.pairsam'). Such files can be useful for
     # thorough investigation of Hi-C data. Downstream of parsing, pairsams
-    # are split into .pairs and .bam, and .bam alignments are tagged with 
-    # Hi-C related information. 'make_pairsam' roughly doubles the storage 
+    # are split into .pairs and .bam, and .bam alignments are tagged with
+    # Hi-C related information. 'make_pairsam' roughly doubles the storage
     # and I/O requirements and should be used only when absolutely needed.
     # NOTE: when 'make_pairsam' is False, the initial output of parsing is still
     # called '.pairsam' despite missing SAM alignments, for technical reasons.
@@ -122,15 +127,15 @@ parse:
     # subsequently .bam files after .apirsam splitting.
     drop_readid: False
 
-    
+
     # When 'keep_unparsed_bams' is True, distiller preserves the _immediate_
-    # output of bwa in a .bam format. Could be used as a faster alternative 
+    # output of bwa in a .bam format. Could be used as a faster alternative
     # to 'make_pairsam' when alignments are needed, but tagging them with Hi-C
     # related information is not necessary.
     keep_unparsed_bams: True
-    
+
     # Pass extra options to pairtools parse, on top of the ones specified by
-    # flags 'make_pairsam', 'drop_readid', 'drop_seq'. The default value 
+    # flags 'make_pairsam', 'drop_readid', 'drop_seq'. The default value
     # enables storing MAPQ scores in the .pairsam/.pairs output, which are
     # used later for filtering/binning.
     parsing_options: '--add-columns mapq'
@@ -138,7 +143,7 @@ parse:
 # Control how PCR/optical duplicates are detected in the data.
 dedup:
     # PCR/optical duplicates are detected as Hi-C pairs with matching locations
-    # on both sides. 'max_mismatch_bp' controls the maximal allowed mismatch in 
+    # on both sides. 'max_mismatch_bp' controls the maximal allowed mismatch in
     # mapped locations on either side for two pairs to be still considered as
     # duplicates.
     max_mismatch_bp: 3
@@ -167,7 +172,7 @@ bin:
     # given filter expression will be binned into a separate cooler.
     # Filters are specified using the following syntax:
     # {filter_name}: '{a valid Python expression}'
-    filters: 
+    filters:
         no_filter: ''
         mapq_30: '(mapq1>=30) and (mapq2>=30)'
 
@@ -184,4 +189,3 @@ output:
         coolers_library: 'results/coolers_library/'
         coolers_library_group: 'results/coolers_library_group/'
         stats_library_group: 'results/stats_library_group/'
-
