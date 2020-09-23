@@ -58,6 +58,6 @@ In a new project folder, execute:
 
 ```sh
 $ nextflow clone mirnylab/distiller-nf  ./
-$ bash ./test/setup_test.sh
-$ nextflow distiller.nf -params-file ./test/test_project.yml
+$ cd test; bash setup_test.sh; cd ..
+$ nextflow distiller.nf -params-file ./test/test_project.yml 
 ```

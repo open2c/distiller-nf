@@ -33,7 +33,7 @@ def parse_args(args):
         metavar='N', 
         type=str, 
         nargs='+',
-        help='GEO/SRA/ENA accession with a Hi-C project.')
+        help='GEO/SRA/ENA accession with a Hi-C project. Multiple values are allowed.')
     parser.add_argument(
         '--title_sub', 
         nargs=2, 
