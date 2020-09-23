@@ -56,8 +56,8 @@ input:
         your_library_online:
             lane1:
                 # Files can be provided as http/ftp/s3 links
-                - https://github.com/mirnylab/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
-                - https://github.com/mirnylab/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
+                - https://github.com/open2c/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
+                - https://github.com/open2c/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
             lane2:
                 # Alternatively, reads can be downloaded from SRA
                 - sra:SRR2601842

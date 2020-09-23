@@ -1,6 +1,6 @@
 FROM ubuntu:16.04
 
-MAINTAINER mirnylib
+MAINTAINER open2c
 
 RUN apt-get update --fix-missing && \
   apt-get install -q -y wget curl bzip2 libbz2-dev git build-essential zlib1g-dev locales vim fontconfig ttf-dejavu

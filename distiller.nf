@@ -165,7 +165,6 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
         srr_end = (sra_query =~ /end=(\d+)/)[0][1]
     }
 
-    wget_url = "ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR${srrnum.take(3)}/${srr}/${srr}.sra"
     if ((srr_start > 0) || (srr_end != -1)) {
         cmd = """
             ${fastqDumpCmd(srr, library, run, srr_start, srr_end, threads)}
@@ -174,8 +173,10 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
     }
     else {
         cmd = """
-            if wget --spider ${wget_url} 2>/dev/null; then
-                wget ${wget_url} -qO ${srr}.sra
+	    URL=\$(srapath ${srr})
+            if wget --spider \$URL 2>/dev/null; then
+		echo 'Dowloading from ', \$URL
+                wget \$URL -qO ${srr}.sra
                 ${fastqDumpCmd(srr+'.sra', library, run, 0, -1, threads)}
                 rm ${srr}.sra
             else
