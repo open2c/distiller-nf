@@ -481,7 +481,7 @@ process map_parse_sort_chunks {
 
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
-    touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.ba
+    touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
 
     ${mapping_command} \
     | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
