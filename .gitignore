@@ -13,3 +13,7 @@ hs_err_pid*
 
 test/fastq/*
 test/genome/*
+.nextflow*
+pipeline_info/*
+work/*
+results/*
