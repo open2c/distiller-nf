@@ -117,6 +117,13 @@ map:
     #--detect_adapter_for_pe -q 15
     trim_options: ''
 
+    # A more technical option, use a custom script to split fastq files from SRA 
+    # into two files, one per read side. By default it is true, which is
+    # faster (because we can use multi-threaded compression), but less
+    # stable. Set to false if you download files from SRA and bwa complains
+    # about unpaired reads.
+    use_custom_split: true
+
 # Control how read alignments are converted ('parsed') into Hi-C pairs.
 parse:
     # If 'make_pairsam' is True, parsed Hi-C pairs will store complete
@@ -129,6 +136,7 @@ parse:
     # NOTE: when 'make_pairsam' is False, the initial output of parsing is still
     # called '.pairsam' despite missing SAM alignments, for technical reasons.
     make_pairsam: False
+
     # When 'make_pairsam' is True, enabling 'drop_seq' erases sequences and
     # Phred scores from the SAM alignments in .pairsam and .bam output files.
     # Enable to make lightweight .pairsam/.bam output.
@@ -140,8 +148,6 @@ parse:
     # NOTE: does not affect alignment records in the .pairsam files and
     # subsequently .bam files after .apirsam splitting.
     drop_readid: True
-
-
 
     # When 'keep_unparsed_bams' is True, distiller preserves the _immediate_
     # output of bwa in a .bam format. Could be used as a faster alternative

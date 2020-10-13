@@ -128,25 +128,37 @@ LIB_RUN_SOURCES_LOCAL_TRUNCATE_CHUNK
  */
 
 
-def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1) {
+def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1, use_custom_split=true ) {
     def srr_start_flag = (srr_start == 0) ? '' : (' --minSpotId ' + srr_start)
     def srr_end_flag = (srr_end == -1) ? '' : (' --maxSpotId ' + srr_end)
     def bgzip_threads = Math.max(1,((threads as int)-2).intdiv(2))
+    def cmd = ''
 
-    def cmd = """
-        HOME=`readlink -e ./`
-        fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
-                       | pyfilesplit --lines 4 \
-                         >(bgzip -c -@{bgzip_threads} > ${library}.${run}.1.fastq.gz) \
-                         >(bgzip -c -@{bgzip_threads} > ${library}.${run}.2.fastq.gz) \
-                         | cat """
+    if (use_custom_split) {
+        cmd = """
+            HOME=`readlink -e ./`
+            fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
+                        | pyfilesplit --lines 4 \
+                            >(bgzip -c -@{bgzip_threads} > ${library}.${run}.1.fastq.gz) \
+                            >(bgzip -c -@{bgzip_threads} > ${library}.${run}.2.fastq.gz) \
+                            | cat """
+
+        
+    } else {
+        cmd = """
+            HOME=`readlink -e ./`
+            fastq-dump ${file_or_srr} --gzip --split-spot --split-3 ${srr_start_flag} ${srr_end_flag} 
+            mv *_1.fastq.gz ${library}.${run}.1.fastq.gz
+            mv *_2.fastq.gz ${library}.${run}.2.fastq.gz
+        """
+    }
 
     return cmd
 }
 
 
 def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
-                           chunksize=0, threads=1) {
+                           chunksize=0, threads=1, use_custom_split=true) {
     def cmd = ""
 
     def srr = ( sra_query =~ /SRR\d+/ )[0]
@@ -167,7 +179,7 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
 
     if ((srr_start > 0) || (srr_end != -1)) {
         cmd = """
-            ${fastqDumpCmd(srr, library, run, srr_start, srr_end, threads)}
+            ${fastqDumpCmd(srr, library, run, srr_start, srr_end, threads, use_custom_split)}
             if [ -d ./ncbi ]; then rm -Rf ./ncbi; fi
         """
     }
@@ -177,11 +189,11 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
             if wget --spider \$URL 2>/dev/null; then
 		echo 'Dowloading from ', \$URL
                 wget \$URL -qO ${srr}.sra
-                ${fastqDumpCmd(srr+'.sra', library, run, 0, -1, threads)}
+                ${fastqDumpCmd(srr+'.sra', library, run, 0, -1, threads, use_custom_split)}
                 rm ${srr}.sra
             else
                 echo 'Cannot wget an sra, fall back to fastq-dump'
-                ${fastqDumpCmd(srr, library, run, 0, -1, threads)}
+                ${fastqDumpCmd(srr, library, run, 0, -1, threads, use_custom_split)}
                 if [ -d ./ncbi ]; then rm -Rf ./ncbi; fi
             fi
         """
@@ -285,6 +297,7 @@ process download_truncate_chunk_fastqs{
     script:
     def truncate_fastq_reads = params['input'].get('truncate_fastq_reads',0)
     def chunksize = params['map'].get('chunksize', 0)
+    def use_custom_split = params['map'].get('use_custom_split', 'true').toBoolean()
 
     def download_truncate_chunk_cmd1 = ""
     def download_truncate_chunk_cmd2 = ""
@@ -295,7 +308,7 @@ process download_truncate_chunk_fastqs{
         }
 
         download_truncate_chunk_cmd1 += sraDownloadTruncateCmd(
-            query1, library, run, truncate_fastq_reads, chunksize, task.cpus)
+            query1, library, run, truncate_fastq_reads, chunksize, task.cpus, use_custom_split)
 
     } else {
         download_truncate_chunk_cmd1 += fastqDownloadTruncateCmd(
