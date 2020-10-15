@@ -1,6 +1,8 @@
 import sys
 import argparse
 import re
+
+import numpy as np
 import pandas as pd
 import pysradb
 
@@ -63,6 +65,27 @@ def parse_args(args):
         '\n'
         '--group_sub \'[_-](R|rep)[\\d+]$\' \'\''
     )
+
+    parser.add_argument(
+        '--filter_pre', 
+        nargs=1, 
+        action='append',
+        default = [],
+        type=str,
+        help='A regular expression to filter datasets by their *unedited* name. '
+        'If multiple filters are provided, select datasets that satisfy at least one of the filters. '
+        '--filter \'[Hh][Ii]-?[Cc]\''
+    )
+
+    parser.add_argument(
+        '--filter_post', 
+        action='append',
+        default = [],
+        type=str,
+        help='A regular expression to filter datasets by their *edited* name. '
+        'If multiple filters are provided, select datasets that satisfy at least one of the filters. '
+        '--filter \'[Hh][Ii]-?[Cc]\''
+    )
     
     return parser.parse_args(args)
 
@@ -84,7 +107,7 @@ DEFAULT_TITLE_SUB = [
         ('[^\w_.-]', '') # the first character cannot be a hyphen!!
     ]
 DEFAULT_GROUP_SUB =  [
-    ('[_-](R|rep)[\d+]$', '')
+    ('[_-](R|rep)_?[\d+]$', '')
 ]
 
 TAB_CHAR = '    '
@@ -111,12 +134,25 @@ srr_table['experiment_title'] = (
     .str.strip()
 )
 
+if args.filter_pre:
+    mask = np.logical_or.reduce([
+        srr_table['experiment_title'].str.contains(fltr, regex=True) 
+        for fltr in list(args.filter_pre)])
+    srr_table = srr_table[mask]
 
 for re_sub in (args.title_sub if args.title_sub else DEFAULT_TITLE_SUB):
     srr_table['experiment_title'] = (
             srr_table.experiment_title
             .str.replace(re_sub[0], re_sub[1], regex=True)
         )
+
+print(args.filter_post)
+if args.filter_post:
+    mask = np.logical_or.reduce([
+        srr_table['experiment_title'].str.contains(fltr, regex=True) 
+        for fltr in list(args.filter_post)])
+    srr_table = srr_table[mask]
+
 
 srr_table=srr_table.sort_values(['experiment_title','run_accession'])
 
