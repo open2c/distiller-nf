@@ -146,7 +146,6 @@ for re_sub in (args.title_sub if args.title_sub else DEFAULT_TITLE_SUB):
             .str.replace(re_sub[0], re_sub[1], regex=True)
         )
 
-print(args.filter_post)
 if args.filter_post:
     mask = np.logical_or.reduce([
         srr_table['experiment_title'].str.contains(fltr, regex=True) 
