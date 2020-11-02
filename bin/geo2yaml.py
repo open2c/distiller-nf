@@ -129,7 +129,7 @@ srr_table['experiment_title'] = (
     srr_table['experiment_title']
     .str.split(';')
     .str.get(0)
-    .str.split(':')
+    .str.split(':', n=1)
     .str.get(1)
     .str.strip()
 )
