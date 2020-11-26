@@ -158,8 +158,9 @@ parse:
     # Pass extra options to pairtools parse, on top of the ones specified by
     # flags 'make_pairsam', 'drop_readid', 'drop_seq'. The default value
     # enables storing MAPQ scores in the .pairsam/.pairs output, which are
-    # used later for filtering/binning.
-    parsing_options: '--add-columns mapq'
+    # used later for filtering/binning. The default walks-policy is 'mask'
+    # which masks complex walks in long reads.
+    parsing_options: '--add-columns mapq --walks-policy mask'
 
 # Control how PCR/optical duplicates are detected in the data.
 dedup:
