@@ -117,12 +117,18 @@ map:
     #--detect_adapter_for_pe -q 15
     trim_options: ''
 
-    # A more technical option, use a custom script to split fastq files from SRA 
+    # A more technical option, use a custom script to split fastq files from SRA
     # into two files, one per read side. By default it is true, which is
     # faster (because we can use multi-threaded compression), but less
     # stable. Set to false if you download files from SRA and bwa complains
     # about unpaired reads.
     use_custom_split: true
+
+    # By default distiller runs bwa mem, which is good for 70bp-1Mbp reads.
+    # However, for short reads bwa aln is recommended.
+    # Control the mapping algorithm with this option. bwa mem if true, bwa aln otherwise.
+    long_reads: true
+
 
 # Control how read alignments are converted ('parsed') into Hi-C pairs.
 parse:
@@ -153,7 +159,7 @@ parse:
     # output of bwa in a .bam format. Could be used as a faster alternative
     # to 'make_pairsam' when alignments are needed, but tagging them with Hi-C
     # related information is not necessary.
-    keep_unparsed_bams: False
+    keep_unparsed_bams: True
 
     # Pass extra options to pairtools parse, on top of the ones specified by
     # flags 'make_pairsam', 'drop_readid', 'drop_seq'. The default value

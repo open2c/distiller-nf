@@ -137,6 +137,7 @@ def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1, 
     if (use_custom_split) {
         cmd = """
             HOME=`readlink -e ./`
+            cp -r /home/agalicina/.ncbi/ .
             fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
                         | pyfilesplit --lines 4 \
                             >(bgzip -c -@{bgzip_threads} > ${library}.${run}.1.fastq.gz) \
@@ -147,6 +148,7 @@ def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1, 
     } else {
         cmd = """
             HOME=`readlink -e ./`
+            cp -r /home/agalicina/.ncbi/ .
             fastq-dump ${file_or_srr} --gzip --split-spot --split-3 ${srr_start_flag} ${srr_end_flag} 
             mv *_1.fastq.gz ${library}.${run}.1.fastq.gz
             mv *_2.fastq.gz ${library}.${run}.2.fastq.gz
@@ -468,6 +470,7 @@ process map_parse_sort_chunks {
     // additional mapping options or empty-line
     def mapping_options = params['map'].get('mapping_options','')
     def trim_options = params['map'].get('trim_options','')
+    def long_reads = params['map'].get('long_reads', 'true').toBoolean()
 
     def dropsam_flag = params['parse'].get('make_pairsam','false').toBoolean() ? '' : '--drop-sam'
     def dropreadid_flag = params['parse'].get('drop_readid','false').toBoolean() ? '--drop-readid' : ''
@@ -479,19 +482,49 @@ process map_parse_sort_chunks {
     def bwa_threads = (task.cpus as int)
     def sorting_threads = (task.cpus as int)
 
-    def mapping_command = (
-        trim_options ? 
-        "fastp ${trim_options} \
-        --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json \
-        --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html \
-        -i ${fastq1} -I ${fastq2} --stdout | \
-        bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
-        - ${keep_unparsed_bams_command}" : \
-        \
-        "bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
-        ${fastq1} ${fastq2} ${keep_unparsed_bams_command}"
-        )
+    def mapping_command = ""
+    if (long_reads){
+        if (trim_options){
+            mapping_command = "fastp ${trim_options} \
+            --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json \
+            --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html \
+            -i ${fastq1} -I ${fastq2} --stdout | \
+            bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
+            - ${keep_unparsed_bams_command}"
+        } else {
+            mapping_command = "bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
+            ${fastq1} ${fastq2} ${keep_unparsed_bams_command}"
+        }
+    }
+    else {
+        if (trim_options){
+            mapping_command = """fastp ${trim_options} \
+            --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json \
+            --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html \
+            -i ${fastq1} -I ${fastq2} \
+            -o ${fastq1}.trimmed -O ${fastq2}.trimmed
 
+            bwa aln -t ${bwa_threads} ${mapping_options} ${bwa_index_base} \
+            ${fastq1}.trimmed > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.1.sai
+
+            bwa aln -t ${bwa_threads} ${mapping_options} ${bwa_index_base} \
+            ${fastq2}.trimmed > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.2.sai
+
+            bwa sampe ${bwa_index_base} \
+              ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.1.sai \
+              ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.2.sai ${fastq1} ${fastq2} """
+        } else {
+            mapping_command = """bwa aln -t ${bwa_threads} ${bwa_index_base} \
+            ${fastq1} > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.1.sai
+
+            bwa aln -t ${bwa_threads} ${bwa_index_base} \
+            ${fastq2} > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.2.sai
+
+            bwa sampe ${bwa_index_base} \
+              ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.1.sai \
+              ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.2.sai ${fastq1} ${fastq2} """
+        }
+    }
 
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
