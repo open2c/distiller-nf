@@ -68,7 +68,6 @@ def parse_args(args):
 
     parser.add_argument(
         '--filter_pre', 
-        nargs=1, 
         action='append',
         default = [],
         type=str,
