@@ -28,64 +28,62 @@ def parse_args(args):
     parser = argparse.ArgumentParser(
         description='Create the input section for distiller\'s project.yml from GEO/ENA/SRA accessions.',
         # formatter_class=argparse.RawDescriptionHelpFormatter
-        formatter_class=SmartFormatter
+        formatter_class=lambda prog: SmartFormatter(prog,
+            indent_increment=2,
+            max_help_position=8)
         )
+
     parser.add_argument(
         'accessions', 
         metavar='N', 
         type=str, 
         nargs='+',
         help='GEO/SRA/ENA accession with a Hi-C project. Multiple values are allowed.')
-    parser.add_argument(
-        '--title_sub', 
-        nargs=2, 
-        action='append',
-#         type=unescaped_str,
-        default = [],
-        help='A list of regular expression substitutions to clean up the experiment titles. '
-        'Multiple sequential substitutions are allowed. ' 
-        'Each substitution must be provided using a separate flag --title_sub followed by '
-        'a pair of regular expressions pat repl, separated by a space, '
-        'where pat is the matching pattern and repl is the replacement string. '
-        'Internally, these expressions are then provided to pandas.Series.str.replace() or re.sub(). '
-        'The default substitutions (1) replace spaces with underscores and (2) remove characters not matching '
-        'A–Z a–z 0–9 ._- (a.k.a. the POSIX portable file name character set):'
-        '\n'
-        '--title_sub \'\\s\' \'_\' --title_sub \'[^\\w_.-]\' \'\''
-    )
-    parser.add_argument(
-        '--group_sub', 
-        nargs=2, 
-        action='append',
-#         type=unescaped_str,
-        default = [],
-        help='A list of regular expression substitutions to convert experiment titles into groups. '
-        'The usage is same as above. The default substitution removes patterns like _R1/_R2/_rep1/-R1/R1 '
-        'at the end of the experiment title:'
-        '\n'
-        '--group_sub \'[_-](R|rep)[\\d+]$\' \'\''
-    )
-
-    parser.add_argument(
-        '--filter_pre', 
-        action='append',
-        default = [],
-        type=str,
-        help='A regular expression to filter datasets by their *unedited* name. '
-        'If multiple filters are provided, select datasets that satisfy at least one of the filters. '
-        '--filter \'[Hh][Ii]-?[Cc]\''
-    )
-
-    parser.add_argument(
-        '--filter_post', 
-        action='append',
-        default = [],
-        type=str,
-        help='A regular expression to filter datasets by their *edited* name. '
-        'If multiple filters are provided, select datasets that satisfy at least one of the filters. '
-        '--filter \'[Hh][Ii]-?[Cc]\''
-    )
     
+    parser.add_argument(
+        '--print-srr-table',
+        action='store_true',
+        help='If provided, print the table of SRR accessions instead of a distiller yaml config.'
+    )
+
+    parser.add_argument(
+        '--library-eval',
+        type=str,
+        action='append', 
+        default = [],
+        help='A list of functions to generate library IDs from an SRR table. '
+        'Internally, each supplied string is fed into pandas.DataFrame.eval(srr_df, s, engine="python"). '
+        'The result is stored in a column d_lib, which can be reused after the first function. '
+        'The default values are: \n'
+        '--library-eval \'experiment_title.str.extract(": ([^;]*);")\' \\\n'
+        '--library-eval \'d_lib.str.replace("\s", "_", regex=True)\' \\\n'
+        '--library-eval \'d_lib.str.replace("[^\w_.-]", "", regex=True)\' \\\n',
+    )
+
+    parser.add_argument(
+        '--group-eval', 
+        type=str,
+        action='append',
+        default = [],
+        help='A list of functions to generate library IDs from an SRR table. '
+        'Internally, each supplied string is fed into pandas.DataFrame.eval(srr_df, s, engine="python"). '
+        'The result is stored in a column d_group, which can be reused after the first function. '
+        'The default values are: \n'
+        '--group-eval \'d_lib.str.replace("[_-](R|rep)_?[\d+]$", "", regex=True)\''
+    )
+
+    parser.add_argument(
+        '--filter-srr', 
+        action='append',
+        default = [],
+        type=str,
+        help='A list of functions to filter the SRR table. '
+        'Internally, each supplied string is fed into pandas.DataFrame.query(srr_df, s, engine="python"). '
+        'By default, no filtering is applied. Example: \n'
+        '--filter-srr d_lib.str.contains("[Hh][Ii]-?[Cc]", regex=True)'
+        
+    )
+
     return parser.parse_args(args)
 
 def to_downloadable(queries):
@@ -101,13 +99,17 @@ def to_downloadable(queries):
             out_queries.append(q)
     return out_queries
 
-DEFAULT_TITLE_SUB = [
-        ('\s', '_'),
-        ('[^\w_.-]', '') # the first character cannot be a hyphen!!
-    ]
-DEFAULT_GROUP_SUB =  [
-    ('[_-](R|rep)_?[\d+]$', '')
+DEFAULT_LIBRARY_EVAL = [
+    'experiment_title.str.extract(": ([^;]*);")',
+    'd_lib.str.replace("\s", "_", regex=True)',
+    'd_lib.str.replace("[^\w_.-]", "", regex=True)',
 ]
+
+DEFAULT_GROUP_EVAL = [
+    'd_lib.str.replace("[_-](R|rep)_?[\d+]$", "", regex=True)',
+]
+
+DEFAULT_SRR_FILTER = []
 
 TAB_CHAR = '    '
 
@@ -117,88 +119,65 @@ db = pysradb.SRAweb()
 
 queries = to_downloadable(args.accessions)
  
-srr_table = pd.concat([    
-    db.sra_metadata(q)
+srr_df = pd.concat([    
+    db.sra_metadata(q, detailed=True)
     for q in queries
 ])
 
-srr_table = srr_table[['experiment_title', 'run_accession']]
+for library_eval in (args.library_eval if args.library_eval else DEFAULT_LIBRARY_EVAL):
+    srr_df['d_lib'] = srr_df.eval(library_eval, engine='python')
 
-srr_table['experiment_title'] = (
-    srr_table['experiment_title']
-    .str.split(';')
-    .str.get(0)
-    .str.split(':', n=1)
-    .str.get(1)
-    .str.strip()
-)
+for group_eval in (args.group_eval if args.group_eval else DEFAULT_LIBRARY_EVAL):
+    srr_df['d_group'] = srr_df.eval(group_eval, engine='python')
 
-if args.filter_pre:
-    mask = np.logical_or.reduce([
-        srr_table['experiment_title'].str.contains(fltr, regex=True) 
-        for fltr in list(args.filter_pre)])
-    srr_table = srr_table[mask]
+for srr_filter in (args.filter_srr if args.filter_srr else DEFAULT_SRR_FILTER):
+    srr_df = srr_df.query(srr_filter, engine='python')
 
-for re_sub in (args.title_sub if args.title_sub else DEFAULT_TITLE_SUB):
-    srr_table['experiment_title'] = (
-            srr_table.experiment_title
-            .str.replace(re_sub[0], re_sub[1], regex=True)
-        )
+srr_df = srr_df.sort_values(['d_lib', 'run_accession'])
 
-if args.filter_post:
-    mask = np.logical_or.reduce([
-        srr_table['experiment_title'].str.contains(fltr, regex=True) 
-        for fltr in list(args.filter_post)])
-    srr_table = srr_table[mask]
-
-
-srr_table=srr_table.sort_values(['experiment_title','run_accession'])
-
-srr_table['lane'] = (
+srr_df['lane'] = (
     'lane'
-    + (srr_table.groupby('experiment_title').cumcount()+1)
-        .astype('str')
+    + (srr_df.groupby('d_lib').cumcount()+1).astype('str')
 )
 
-group = srr_table.experiment_title
-for sub in (args.group_sub if args.group_sub else DEFAULT_GROUP_SUB):
-    group = group.str.replace(sub[0], sub[1])
-srr_table['group'] = group
 
 # Keeping this code in case YAML structures will become useful:
 
 # out_raw_reads_paths = {}
-# for title, grouped in srr_table.groupby('experiment_title'):
+# for title, grouped in srr_df.groupby('d_lib'):
 #     out_raw_reads_paths[title] = {
 #         row.lane:f'- sra:{row.run_accession}'
 #         for _,row in grouped.iterrows()
 #     }
 
 # out_library_groups = {}
-# for group, grouped in srr_table.groupby('group'):
-#     experiment_titles = list(grouped.experiment_title.unique())
-#     if len(experiment_titles) > 1:
-#         out_library_groups[group] = experiment_titles
+# for group, grouped in srr_df.groupby('group'):
+#     distiller_libraries = list(grouped.d_lib.unique())
+#     if len(distiller_libraries) > 1:
+#         out_library_groups[group] = distiller_libraries
 
 
-out_raw_reads_paths = [f'{TAB_CHAR}raw_reads_paths:']
-for title, grouped in srr_table.groupby('experiment_title'):
-    out_raw_reads_paths.append(f'{TAB_CHAR}{TAB_CHAR}{title}:')
-    for _, row in grouped.iterrows():
-        out_raw_reads_paths.append(f'{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}{row.lane}:')
-        out_raw_reads_paths.append(f'{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}- sra:{row.run_accession}')
+if args.print_srr_table:
+    srr_df.to_csv(sys.stdout, sep='\t', index=False)
+else:
+    out_raw_reads_paths = [f'{TAB_CHAR}raw_reads_paths:']
+    for title, grouped in srr_df.groupby('d_lib'):
+        out_raw_reads_paths.append(f'{TAB_CHAR}{TAB_CHAR}{title}:')
+        for _, row in grouped.iterrows():
+            out_raw_reads_paths.append(f'{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}{row.lane}:')
+            out_raw_reads_paths.append(f'{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}- sra:{row.run_accession}')
 
-out_library_groups = [f'{TAB_CHAR}library_groups:']
-for group, grouped in srr_table.groupby('group'):
-    experiment_titles = grouped.experiment_title.unique()
-    if len(experiment_titles) > 1:
-        out_library_groups.append(f'{TAB_CHAR}{TAB_CHAR}{group}:')
-        out_library_groups += [f'{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}- {title}' 
-                               for title in experiment_titles]
+    out_library_groups = [f'{TAB_CHAR}library_groups:']
+    for group, grouped in srr_df.groupby('d_group'):
+        distiller_libraries = grouped['d_lib'].unique()
+        if len(distiller_libraries) > 1:
+            out_library_groups.append(f'{TAB_CHAR}{TAB_CHAR}{group}:')
+            out_library_groups += [f'{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}- {title}' 
+                                for title in distiller_libraries]
 
-out = '\n'.join(['input:']+out_raw_reads_paths+out_library_groups) 
+    out = '\n'.join(['input:']+out_raw_reads_paths+out_library_groups) 
 
-print('# generated by geo2yaml.py:')
-print('# python ' + ' '.join(sys.argv))
-print(out)
+    print('# generated by geo2yaml.py:')
+    print('# python ' + ' '.join(sys.argv))
+    print(out)
 
