@@ -127,7 +127,7 @@ srr_df = pd.concat([
 for library_eval in (args.library_eval if args.library_eval else DEFAULT_LIBRARY_EVAL):
     srr_df['d_lib'] = srr_df.eval(library_eval, engine='python')
 
-for group_eval in (args.group_eval if args.group_eval else DEFAULT_LIBRARY_EVAL):
+for group_eval in (args.group_eval if args.group_eval else DEFAULT_GROUP_EVAL):
     srr_df['d_group'] = srr_df.eval(group_eval, engine='python')
 
 for srr_filter in (args.filter_srr if args.filter_srr else DEFAULT_SRR_FILTER):
