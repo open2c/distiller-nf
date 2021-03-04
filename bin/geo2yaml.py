@@ -54,13 +54,14 @@ def parse_args(args):
         type=str,
         action='append', 
         default = [],
-        help='A list of functions to generate library IDs from an SRR table. '
-        'Internally, each supplied string is fed into pandas.DataFrame.eval(srr_df, s, engine="python"). '
-        'The result is stored in a column d_lib, which can be reused after the first function. '
+        help='A list of Python expressions to generate library IDs from an SRR table. '
+        'Internally, each supplied expression is evaluated using eval() and the output is saved into '
+        'a column `d_lib`, which can be reused after the first function. '
+        'The expression can only have access to the pandas.DataFrame `srr` with SRR accessions.'
         'The default values are: \n'
-        '--library-eval \'experiment_title.str.extract(": ([^;]*);")\' \\\n'
-        '--library-eval \'d_lib.str.replace("\s", "_", regex=True)\' \\\n'
-        '--library-eval \'d_lib.str.replace("[^\w_.-]", "", regex=True)\' \\\n',
+        '--library-eval \'srr["experiment_title"].str.extract(": ([^;]*);")\' \\\n'
+        '--library-eval \'srr["d_lib"].str.replace("\s", "_", regex=True)\' \\\n'
+        '--library-eval \'srr["d_lib"].str.replace("[^\w_.-]", "", regex=True)\' \\\n',
     )
 
     parser.add_argument(
@@ -68,11 +69,12 @@ def parse_args(args):
         type=str,
         action='append',
         default = [],
-        help='A list of functions to generate library IDs from an SRR table. '
-        'Internally, each supplied string is fed into pandas.DataFrame.eval(srr_df, s, engine="python"). '
-        'The result is stored in a column d_group, which can be reused after the first function. '
+        help='A list of Python expressions to generate group IDs from an SRR table. '
+        'Internally, each supplied expression is evaluated using eval() and the output is saved into '
+        'a column `d_group`, which can be reused after the first function. '
+        'The expression can only have access to the pandas.DataFrame `srr` with SRR accessions.'
         'The default values are: \n'
-        '--group-eval \'d_lib.str.replace("[_-](R|rep)_?[\d+]$", "", regex=True)\''
+        '--group-eval \'srr["d_lib"].str.replace("[_-](R|rep)_?[\d+]$", "", regex=True)\''
     )
 
     parser.add_argument(
@@ -80,10 +82,12 @@ def parse_args(args):
         action='append',
         default = [],
         type=str,
-        help='A list of functions to filter the SRR table. '
-        'Internally, each supplied string is fed into pandas.DataFrame.query(srr_df, s, engine="python"). '
+        help='A list of Python expressions to filter the SRR table. '
+        'Internally, each supplied expression is evaluated using eval() and the resulting '
+        'boolean mask is used to filter the SRR table. '
+        'The expression can only have access to the pandas.DataFrame `srr` with SRR accessions.'
         'By default, no filtering is applied. Example: \n'
-        '--filter-srr d_lib.str.contains("[Hh][Ii]-?[Cc]", regex=True)'
+        '--filter-srr srr["d_lib"].str.contains("[Hh][Ii]-?[Cc]", regex=True)'
         
     )
 
@@ -103,13 +107,13 @@ def to_downloadable(queries):
     return out_queries
 
 DEFAULT_LIBRARY_EVAL = [
-    'experiment_title.str.extract(": ([^;]*);")',
-    'd_lib.str.replace("\s", "_", regex=True)',
-    'd_lib.str.replace("[^\w_.-]", "", regex=True)',
+    'srr["experiment_title"].str.extract(": ([^;]*);")',
+    'srr["d_lib"].str.replace("\s", "_", regex=True)',
+    'srr["d_lib"].str.replace("[^\w_.-]", "", regex=True)',
 ]
 
 DEFAULT_GROUP_EVAL = [
-    'd_lib.str.replace("[_-](R|rep)_?[\d+]$", "", regex=True)',
+    'srr["d_lib"].str.replace("[_-](R|rep)_?[\d+]$", "", regex=True)',
 ]
 
 DEFAULT_SRR_FILTER = []
@@ -121,61 +125,58 @@ args = parse_args(sys.argv[1:])
 
 
 if pathlib.Path(args.accessions[0]).is_file():
-    srr_df = pd.read_csv(args.accessions[0], sep='\t')
+    srr = pd.read_csv(args.accessions[0], sep='\t').convert_dtypes()
 else:
     db = pysradb.SRAweb()
     queries = to_downloadable(args.accessions)
     
-    srr_df = pd.concat([    
+    srr = pd.concat([    
         db.sra_metadata(q, detailed=True)
         for q in queries
     ])
 
 for library_eval in (args.library_eval if args.library_eval else DEFAULT_LIBRARY_EVAL):
-    srr_df['d_lib'] = srr_df.eval(library_eval, engine='python')
+    srr['d_lib'] = eval(library_eval, {'srr':srr})
 
 for group_eval in (args.group_eval if args.group_eval else DEFAULT_GROUP_EVAL):
-    srr_df['d_group'] = srr_df.eval(group_eval, engine='python')
+    srr['d_group'] = eval(group_eval, {'srr':srr})
 
 for srr_filter in (args.filter_srr if args.filter_srr else DEFAULT_SRR_FILTER):
-    srr_df = srr_df.query(srr_filter, engine='python')
+    srr = srr[eval(srr_filter, {'srr':srr})]
 
-srr_df = srr_df.sort_values(['d_lib', 'run_accession'])
+srr = srr.sort_values(['d_lib', 'run_accession'])
 
-srr_df['lane'] = (
-    'lane'
-    + (srr_df.groupby('d_lib').cumcount()+1).astype('str')
-)
+srr['lane'] = 'lane' + (srr.groupby('d_lib').cumcount()+1).astype('str')
 
 
 # Keeping this code in case YAML structures will become useful:
 
 # out_raw_reads_paths = {}
-# for title, grouped in srr_df.groupby('d_lib'):
+# for title, grouped in srr.groupby('d_lib'):
 #     out_raw_reads_paths[title] = {
 #         row.lane:f'- sra:{row.run_accession}'
 #         for _,row in grouped.iterrows()
 #     }
 
 # out_library_groups = {}
-# for group, grouped in srr_df.groupby('group'):
+# for group, grouped in srr.groupby('group'):
 #     distiller_libraries = list(grouped.d_lib.unique())
 #     if len(distiller_libraries) > 1:
 #         out_library_groups[group] = distiller_libraries
 
 
 if args.print_srr_table:
-    srr_df.to_csv(sys.stdout, sep='\t', index=False)
+    srr.to_csv(sys.stdout, sep='\t', index=False)
 else:
     out_raw_reads_paths = [f'{TAB_CHAR}raw_reads_paths:']
-    for title, grouped in srr_df.groupby('d_lib'):
+    for title, grouped in srr.groupby('d_lib'):
         out_raw_reads_paths.append(f'{TAB_CHAR}{TAB_CHAR}{title}:')
         for _, row in grouped.iterrows():
             out_raw_reads_paths.append(f'{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}{row.lane}:')
             out_raw_reads_paths.append(f'{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}{TAB_CHAR}- sra:{row.run_accession}')
 
     out_library_groups = [f'{TAB_CHAR}library_groups:']
-    for group, grouped in srr_df.groupby('d_group'):
+    for group, grouped in srr.groupby('d_group'):
         distiller_libraries = grouped['d_lib'].unique()
         if len(distiller_libraries) > 1:
             out_library_groups.append(f'{TAB_CHAR}{TAB_CHAR}{group}:')
