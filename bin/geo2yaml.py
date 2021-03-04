@@ -1,5 +1,6 @@
 import sys
 import argparse
+import pathlib
 import re
 
 import numpy as np
@@ -38,7 +39,9 @@ def parse_args(args):
         metavar='N', 
         type=str, 
         nargs='+',
-        help='GEO/SRA/ENA accession with a Hi-C project. Multiple values are allowed.')
+        help='GEO/SRA/ENA accession with a Hi-C project. Multiple values are allowed. '
+        'Alternatively, a file with a table of SRR accessions generated using the --print-srr-table option '
+        '(use this to reduce GEO queries).')
     
     parser.add_argument(
         '--print-srr-table',
@@ -113,16 +116,20 @@ DEFAULT_SRR_FILTER = []
 
 TAB_CHAR = '    '
 
+
 args = parse_args(sys.argv[1:])
 
-db = pysradb.SRAweb()
 
-queries = to_downloadable(args.accessions)
- 
-srr_df = pd.concat([    
-    db.sra_metadata(q, detailed=True)
-    for q in queries
-])
+if pathlib.Path(args.accessions[0]).is_file():
+    srr_df = pd.read_csv(args.accessions[0], sep='\t')
+else:
+    db = pysradb.SRAweb()
+    queries = to_downloadable(args.accessions)
+    
+    srr_df = pd.concat([    
+        db.sra_metadata(q, detailed=True)
+        for q in queries
+    ])
 
 for library_eval in (args.library_eval if args.library_eval else DEFAULT_LIBRARY_EVAL):
     srr_df['d_lib'] = srr_df.eval(library_eval, engine='python')
