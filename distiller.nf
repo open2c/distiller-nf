@@ -161,7 +161,7 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
                            chunksize=0, threads=1, use_custom_split=true) {
     def cmd = ""
 
-    def srr = ( sra_query =~ /SRR\d+/ )[0]
+    def srr = ( sra_query =~ /(?:SRR|ERR)\d+/ )[0]
     def srrnum = srr.substring(3)
 
     def srr_start = 0
