@@ -210,6 +210,11 @@ bin:
         no_filter: ''
         mapq_30: '(mapq1>=30) and (mapq2>=30)'
 
+# Control the stats output
+stats:
+    # This option will produce separate stats for filters (listed in bins):
+    use_filters: False
+
 ########################################
 # folder structure for storing results
 ########################################

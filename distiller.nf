@@ -85,7 +85,8 @@ Channel.from([
 Channel.from(
           params.input.library_groups.collect{ k, v -> [k, v] }
             ).into{LIBRARY_GROUPS_FOR_COOLER_MERGE;
-                   LIBRARY_GROUPS_FOR_STATS_MERGE}
+                   LIBRARY_GROUPS_FOR_STATS_MERGE;
+                   LIBRARY_GROUPS_FOR_STATS_FILTER}
 
 
 // the Channel the location of Raw Data (fastqs):
@@ -551,7 +552,7 @@ process map_parse_sort_chunks {
 LIB_RUN_CHUNK_PAIRSAMS
     .map {library, run, chunk, pairsam, bam -> tuple(library, pairsam)}
     .groupTuple()
-    .set {LIB_PAIRSAMS_TO_MERGE}
+    .into { LIB_PAIRSAMS_TO_MERGE; LIB_PAIRSAMS_TO_FILTER_COMBINE }
 
 process merge_dedup_splitbam {
     tag "library:${library}"
@@ -631,9 +632,12 @@ process merge_dedup_splitbam {
 LIB_PAIRS_BAMS
     .map {v -> tuple(v[0], v[1])}
     .set {LIB_PAIRS}
+
+/* Read filters for creating coolers and writing stats */
 FILTERS = Channel.from(
     params.bin.filters.collect{ name, expr -> [name, expr] } )
-FILTERS
+FILTERS.into {FILTERS_FOR_COOLER; FILTERS_FOR_STATS}
+FILTERS_FOR_COOLER
     .combine(LIB_PAIRS)
     .set {LIB_FILTER_PAIRS}
 
@@ -768,4 +772,70 @@ process merge_stats_libraries_into_groups {
         """
         pairtools stats --merge ${stats} -o ${library_group}.${ASSEMBLY_NAME}.stats
         """
+}
+
+
+/* Filter pairs for stats, if requested: */
+if (params.get('stats', [:]).get('use_filters', 'false').toBoolean()) {
+
+    LIB_PAIRSAMS_TO_FILTER = FILTERS_FOR_STATS.combine(LIB_PAIRSAMS_TO_FILTER_COMBINE)
+
+    process merge_dedup_filter {
+        tag "library:${library}"
+        storeDir getOutputDir('pairs_library')
+
+        input:
+        set val(filter_name), val(filter_expr), val(library), file(run_pairsam) from LIB_PAIRSAMS_TO_FILTER
+
+        output:
+        set library, filter_name, "${library}.${ASSEMBLY_NAME}.${filter_name}.dedup.stats" into LIB_DEDUP_STATS_FILTERED
+
+        script:
+        def make_pairsam = params['parse'].get('make_pairsam','false').toBoolean()
+        def filter_command = (filter_expr == '' ? '' : "| pairtools select '${filter_expr}'")
+        def merge_command = (
+            isSingleFile(run_pairsam) ?
+            "${decompress_command} ${run_pairsam} ${filter_command}" :
+            "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir \$TASK_TMP_DIR  ${filter_command}"
+        )
+
+        """
+        TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
+
+        ${merge_command} | pairtools dedup \
+            --max-mismatch ${params.dedup.max_mismatch_bp} \
+            --output-stats ${library}.${ASSEMBLY_NAME}.${filter_name}.dedup.stats \
+            | cat
+
+        rm -rf \$TASK_TMP_DIR
+        """
+    }
+
+    LIBRARY_GROUPS_FOR_STATS_FILTER
+        .combine(LIB_DEDUP_STATS_FILTERED)
+        .filter{ it[1].contains(it[2]) }
+        .map {library_group, libraries, library, filter_name, stats -> tuple(library_group, filter_name, stats)}
+        .groupTuple(by:[0,1]).view()
+        .set { LIBGROUP_STATS_TO_MERGE_FILTERED }
+
+    process merge_filter_stats_libraries_into_groups {
+        tag "library_group:${library_group}"
+        publishDir path: getOutputDir('stats_library_group'), mode: "copy"
+
+        input:
+        set val(library_group), val(filter_name), file(stats) from LIBGROUP_STATS_TO_MERGE_FILTERED
+
+        output:
+        set library_group, filter_name, "${library_group}.${filter_name}.${ASSEMBLY_NAME}.stats" into LIBGROUP_STATS_FILTERED
+
+        script:
+        if( isSingleFile(stats))
+            """
+            ln -s ${stats} ${library_group}.${filter_name}.${ASSEMBLY_NAME}.stats
+            """
+        else
+            """
+            pairtools stats --merge ${stats} -o ${library_group}.${filter_name}.${ASSEMBLY_NAME}.stats
+            """
+    }
 }
