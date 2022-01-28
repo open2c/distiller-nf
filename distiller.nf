@@ -605,6 +605,7 @@ FILTERS = Channel.from(
 FILTERS.into {FILTERS_FOR_COOLER; FILTERS_FOR_STATS}
 FILTERS_FOR_COOLER
     .combine(LIB_PAIRS)
+    //.combine(CHROM_SIZES_FOR_BINNING.first())
     .set {LIB_FILTER_PAIRS}
 
 /*
@@ -618,7 +619,7 @@ process bin_zoom_library_pairs{
     input:
         set val(filter_name), val(filter_expr), val(library), file(pairs_lib) from LIB_FILTER_PAIRS
         file(chrom_sizes) from CHROM_SIZES_FOR_BINNING.first()
-
+        
     output:
         set library, filter_name, "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.cool",
             "${library}.${ASSEMBLY_NAME}.${filter_name}.${MIN_RES}.mcool" into LIB_FILTER_COOLERS_ZOOMED
@@ -663,6 +664,7 @@ LIBRARY_GROUPS_FOR_COOLER_MERGE
 process merge_zoom_library_group_coolers{
     tag "library_group:${library_group} filter:${filter_name}"
     publishDir path: getOutputDir('coolers_library_group'), mode: "copy"
+    storeDir getOutputDir('coolers_library_group')
 
     input:
         set val(library_group), val(filter_name), file(coolers) from LIBGROUP_FILTER_COOLERS_TO_MERGE
@@ -722,6 +724,7 @@ LIBRARY_GROUPS_FOR_STATS_MERGE
 process merge_stats_libraries_into_groups {
     tag "library_group:${library_group}"
     publishDir path: getOutputDir('stats_library_group'), mode: "copy"
+    storeDir getOutputDir('stats_library_group')
 
     input:
     set val(library_group), file(stats) from LIBGROUP_STATS_TO_MERGE
@@ -789,6 +792,7 @@ if (params.get('stats', [:]).get('use_filters', 'false').toBoolean()) {
     process merge_filter_stats_libraries_into_groups {
         tag "library_group:${library_group}"
         publishDir path: getOutputDir('stats_library_group'), mode: "copy"
+        storeDir getOutputDir('stats_library_group')
 
         input:
         set val(library_group), val(filter_name), file(stats) from LIBGROUP_STATS_TO_MERGE_FILTERED
