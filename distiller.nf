@@ -798,16 +798,16 @@ if (params.get('stats', [:]).get('use_filters', 'false').toBoolean()) {
         set val(library_group), val(filter_name), file(stats) from LIBGROUP_STATS_TO_MERGE_FILTERED
 
         output:
-        set library_group, filter_name, "${library_group}.${filter_name}.${ASSEMBLY_NAME}.stats" into LIBGROUP_STATS_FILTERED
+        set library_group, filter_name, "${library_group}.${ASSEMBLY_NAME}.${filter_name}.stats" into LIBGROUP_STATS_FILTERED
 
         script:
         if( isSingleFile(stats))
             """
-            ln -s ${stats} ${library_group}.${filter_name}.${ASSEMBLY_NAME}.stats
+            ln -s ${stats} ${library_group}.${ASSEMBLY_NAME}.${filter_name}.stats
             """
         else
             """
-            pairtools stats --merge ${stats} -o ${library_group}.${filter_name}.${ASSEMBLY_NAME}.stats
+            pairtools stats --merge ${stats} -o ${library_group}.${ASSEMBLY_NAME}.${filter_name}.stats
             """
     }
 }
