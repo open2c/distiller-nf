@@ -1,4 +1,4 @@
-name: distiller-env
+name: distiller-env-parse2
 channels:
     - conda-forge               
     - defaults                  
@@ -21,8 +21,9 @@ dependencies:
     - dask
     - nose 
     - pairix
-    - pairtools
     - fastp
+    - pysam
     - pip:
         - cooler>=0.8.5
         - toolz
+        - git+https://github.com/open2c/pairtools.git@parse2

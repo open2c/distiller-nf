@@ -136,7 +136,7 @@ def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1, 
 
     if (use_custom_split) {
         cmd = """
-            HOME=`readlink -e ./`
+            #HOME=`readlink -e ./`
             fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
                         | pyfilesplit --lines 4 \
                             >(bgzip -c -@{bgzip_threads} > ${library}.${run}.1.fastq.gz) \
@@ -146,7 +146,7 @@ def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1, 
         
     } else {
         cmd = """
-            HOME=`readlink -e ./`
+            #HOME=`readlink -e ./`
             fastq-dump ${file_or_srr} --gzip --split-spot --split-3 ${srr_start_flag} ${srr_end_flag} 
             mv *_1.fastq.gz ${library}.${run}.1.fastq.gz
             mv *_2.fastq.gz ${library}.${run}.2.fastq.gz
@@ -498,7 +498,7 @@ process map_parse_sort_chunks {
     touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
 
     ${mapping_command} \
-    | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+    | pairtools parse2 ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
       ${parsing_options} \
       -c ${chrom_sizes} \
       | pairtools sort --nproc ${sorting_threads} \
