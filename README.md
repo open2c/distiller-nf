@@ -40,7 +40,7 @@ Launch distiller depending on your usage scenario:
 
 1. default hardware settings `./configs/local.config` with your `project.yml`:
 ```sh
-$ nextflow run distiller.nf -params-file project.yml
+$ nextflow run distiller_dsl2.nf -params-file project.yml
 ```
 2. `cluster` hardware profile `./configs/cluster.config` with your `project.yml`:
 ```sh
@@ -60,4 +60,11 @@ In a new project folder, execute:
 $ nextflow clone mirnylab/distiller-nf  ./
 $ bash ./test/setup_test.sh
 $ nextflow distiller.nf -params-file ./test/test_project.yml 
+```
+
+### Development
+
+Clean up the repository: 
+```sh
+nextflow clean -f; rm -r work; rm -r results
 ```

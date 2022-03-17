@@ -26,33 +26,33 @@ input:
     raw_reads_paths:
         # substitute the location of your fastq files:
         # an example of a 1-lane library:
-        your_library_name_1:
-            lane1:
-                - /path/to/your/fastq/from/library1/library1_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library1_side2.fastq.gz
-        # an example of a 2-lane library:
-        # mapped reads from both lanes will be pulled togheter
-        # and deduplicated as one.
-        your_library_name_2:
-            lane1:
-                - /path/to/your/fastq/from/library1/library2_lane1_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library2_lane1_side2.fastq.gz
-            lane2:
-                - /path/to/your/fastq/from/library1/library2_lane2_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library2_lane2_side2.fastq.gz
-        # an example of a 3-lane library:
-        # mapped reads from both lanes will be pulled togheter
-        # and deduplicated as one.
-        your_library_name_3:
-            lane1:
-                - /path/to/your/fastq/from/library1/library3_lane1_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane1_side2.fastq.gz
-            lane2:
-                - /path/to/your/fastq/from/library1/library3_lane2_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane2_side2.fastq.gz
-            lane3:
-                - /path/to/your/fastq/from/library1/library3_lane3_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane3_side2.fastq.gz
+#        your_library_name_1:
+#            lane1:
+#                - /path/to/your/fastq/from/library1/library1_side1.fastq.gz
+#                - /path/to/your/fastq/from/library1/library1_side2.fastq.gz
+#        # an example of a 2-lane library:
+#        # mapped reads from both lanes will be pulled togheter
+#        # and deduplicated as one.
+#        your_library_name_2:
+#            lane1:
+#                - /path/to/your/fastq/from/library1/library2_lane1_side1.fastq.gz
+#                - /path/to/your/fastq/from/library1/library2_lane1_side2.fastq.gz
+#            lane2:
+#                - /path/to/your/fastq/from/library1/library2_lane2_side1.fastq.gz
+#                - /path/to/your/fastq/from/library1/library2_lane2_side2.fastq.gz
+#        # an example of a 3-lane library:
+#        # mapped reads from both lanes will be pulled togheter
+#        # and deduplicated as one.
+#        your_library_name_3:
+#            lane1:
+#                - /path/to/your/fastq/from/library1/library3_lane1_side1.fastq.gz
+#                - /path/to/your/fastq/from/library1/library3_lane1_side2.fastq.gz
+#            lane2:
+#                - /path/to/your/fastq/from/library1/library3_lane2_side1.fastq.gz
+#                - /path/to/your/fastq/from/library1/library3_lane2_side2.fastq.gz
+#            lane3:
+#                - /path/to/your/fastq/from/library1/library3_lane3_side1.fastq.gz
+#                - /path/to/your/fastq/from/library1/library3_lane3_side2.fastq.gz
         your_library_online:
             lane1:
                 # Files can be provided as http/ftp/s3 links
@@ -70,13 +70,13 @@ input:
     # on the level of binned-data (.cool files)
     # describe your groupings of choice here:
     library_groups:
-        libraries_1_and_2:
-            - your_library_name_1
-            - your_library_name_2
+#        libraries_1_and_2:
+#            - your_library_name_1
+#            - your_library_name_2
         all_libraries:
-            - your_library_name_1
-            - your_library_name_2
-            - your_library_name_3
+#            - your_library_name_1
+#            - your_library_name_2
+#            - your_library_name_3
             - your_library_online
 
 
@@ -93,11 +93,13 @@ input:
     # order of contigs in a resulting contact map.
     genome:
         assembly_name: 'hg19'
-        bwa_index_wildcard_path: '/path/to/your/reference/genome/hg19.fa.*'
-        chrom_sizes_path:   '/path/to/your/reference/genome/hg19.reduced.chrom.sizes'
+        #bwa_index_wildcard_path: '/path/to/your/reference/genome/hg19.fa.*'
+        #chrom_sizes_path:   '/path/to/your/reference/genome/hg19.reduced.chrom.sizes'
+        bwa_index_wildcard_path: '/home/agalicina/GENOMES/distiller_hg38_kit/hg38.fa.*'
+        chrom_sizes_path:   '/home/agalicina/GENOMES/distiller_hg38_kit/hg38.reduced.chrom.sizes'
 
 # Choose if you want to do FastQC of the input files:
-do_fastqc: False
+do_fastqc: true
 
 # Control how reads are mapped to the reference genomes.
 map:
@@ -107,7 +109,7 @@ map:
     # The optimal chunk size is defined by the balance between mapping and merging.
     # Smaller chunks (~30M) are better for clusters with many weak nodes,
     # however, having >~10 chunks per run slow down merging.
-    chunksize: 0
+    chunksize: 1000000
 
     # Specify extra BWA mapping options.
     mapping_options: ''
