@@ -41,7 +41,7 @@ Boolean needsDownloading(query) {
    )
 }
 
-String checkLeftRightChunk(left_chunk_fname,right_chunk_fname) {
+String checkLeftRightChunk(left_chunk_fname, right_chunk_fname) {
     // checks if the chunk index is the same
     // both for left and right chunks and returns
     // that chunk index:

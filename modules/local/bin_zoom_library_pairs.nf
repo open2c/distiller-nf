@@ -1,9 +1,9 @@
 // Import generic module functions
-include { getSoftwareName; initOptions; saveFiles; getOutputDir } from './functions'
+include { initOptions; getSoftwareName; getOutputDir } from './functions'
 
 params.options = [:]
 options        = initOptions(params.options)
-directory = getOutputDir('coolers_library')
+directory      = getOutputDir('coolers_library')
 
 MIN_RES = params['bin'].resolutions.collect { it as int }.min() // TODO: move to parameters dictionary
 ASSEMBLY_NAME = params['input'].genome.assembly_name // TODO: move to the parameters dictionary
@@ -11,12 +11,10 @@ pairsgz_decompress_command = 'bgzip -cd -@ 3'
 
 process BIN_ZOOM {
     tag "library:${library} filter:${filter_name}"
-    label 'process_low'
-    publishDir "${directory}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
+    label 'process_high'
+    publishDir "${directory}", mode: params.publish_dir_mode
 
-    conda (params.enable_conda ? "bioconda::sra-tools>=2.8.1 bioconda::pbgzip" : null)
+    conda (params.enable_conda ? "bioconda::cooler" : null)
 //        if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
 //            container "https://depot.galaxyproject.org/singularity/mulled-v2-a97e90b3b802d1da3d6958e0867610c718cb5eb1:2880dd9d8ad0a7b221d4eacda9a818e92983128d-0"
 //        } else {

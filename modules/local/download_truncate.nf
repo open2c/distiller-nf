@@ -1,5 +1,5 @@
 // Import generic module functions
-include { getSoftwareName; initOptions; saveFiles; getOutputDir } from './functions'
+include { initOptions; getSoftwareName; getOutputDir } from './functions'
 include { sraDownloadTruncateCmd; fastqDownloadTruncateCmd } from './functions'
 
 params.options = [:]
@@ -9,9 +9,7 @@ directory = getOutputDir('processed_fastqs')
 process DOWNLOAD_TRUNCATE {
     tag "library:${library} run:${run}"
     label 'process_low'
-    publishDir "${directory}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
+    publishDir "${directory}", mode: params.publish_dir_mode
 
     conda (params.enable_conda ? "bioconda::sra-tools>=2.8.1 bioconda::pbgzip" : null)
 //        if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {

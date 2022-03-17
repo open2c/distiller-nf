@@ -1,19 +1,17 @@
 // Import generic module functions
-include { getSoftwareName; initOptions; saveFiles; getOutputDir } from './functions'
+include { initOptions; getSoftwareName; getOutputDir } from './functions'
 include { isSingleFile } from './functions'
 
 params.options = [:]
 options        = initOptions(params.options)
-directory = getOutputDir('stats_library_group')
+directory      = getOutputDir('stats_library_group')
 
 ASSEMBLY_NAME = params['input'].genome.assembly_name // TODO: move to the parameters dictionary
 
 process MERGE_STATS {
     tag "library_group:${library_group}"
     label 'process_low'
-    publishDir "${directory}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
+    publishDir "${directory}", mode: params.publish_dir_mode
 
     conda (params.enable_conda ? "bioconda::pairtools" : null)
 //        if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {

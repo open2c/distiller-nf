@@ -1,9 +1,9 @@
 // Import generic module functions
-include { getSoftwareName; initOptions; saveFiles; getOutputDir; isSingleFile } from './functions'
+include { initOptions; getOutputDir; getSoftwareName; isSingleFile } from './functions'
 
 params.options = [:]
 options        = initOptions(params.options)
-directory = getOutputDir('coolers_library_group')
+directory      = getOutputDir('coolers_library_group')
 
 MIN_RES = params['bin'].resolutions.collect { it as int }.min() // TODO: move to parameters dictionary
 ASSEMBLY_NAME = params['input'].genome.assembly_name // TODO: move to the parameters dictionary
@@ -11,10 +11,8 @@ pairsgz_decompress_command = 'bgzip -cd -@ 3'
 
 process MERGE_ZOOM {
     tag "library:${library} filter:${filter_name}"
-    label 'process_low'
-    publishDir "${directory}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
+    label 'process_medium'
+    publishDir "${directory}", mode: params.publish_dir_mode
 
     conda (params.enable_conda ? "bioconda::sra-tools>=2.8.1 bioconda::pbgzip" : null)
 //        if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {

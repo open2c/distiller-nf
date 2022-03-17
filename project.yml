@@ -206,6 +206,14 @@ bin:
         no_filter: ''
         mapq_30: '(mapq1>=30) and (mapq2>=30)'
 
+## Control the stats output
+#stats:
+#    # This option will produce separate stats for filters (see bin.filters above).
+#    # First the pairs are filtered, then the stats are calculated.
+#    # This might result in counterintuitive statistics of total and unmapped reads.
+#    # Only the stats that report uniquely mapped reads passed through the filters should be directly interpreted.
+#    use_filters: True
+
 ########################################
 # folder structure for storing results
 ########################################
@@ -217,4 +225,6 @@ output:
         pairs_library: 'results/pairs_library'
         coolers_library: 'results/coolers_library/'
         coolers_library_group: 'results/coolers_library_group/'
+        stats_library: 'results/stats_library/'
         stats_library_group: 'results/stats_library_group/'
+        multiqc: 'results/multiqc/'

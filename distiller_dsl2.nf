@@ -31,6 +31,7 @@ include { MERGE_DEDUP_SPLITBAM as merge_dedup_splitbam } from './modules/local/m
 include { BIN_ZOOM as bin_zoom_library_pairs } from './modules/local/bin_zoom_library_pairs' addParams( options: [:] )
 include { MERGE_ZOOM as merge_zoom_library_group_coolers } from './modules/local/merge_zoom_library_group_coolers' addParams( options: [:] )
 include { MERGE_STATS as merge_stats_libraries_into_groups } from './modules/local/merge_stats_libraries_into_groups' addParams( options: [:] )
+include { MULTIQC } from './modules/local/multiqc/main.nf' addParams( options: [:] )
 
 // Define workflow
 workflow DISTILLER {
@@ -45,9 +46,8 @@ workflow DISTILLER {
               params.input.library_groups.collect{ k, v -> [k, v] }
               )
 
-
     // the Channel the location of Raw Data (fastqs):
-    LIB_RUN_SOURCES = Channel.from(
+    RUN_SOURCES = Channel.from(
             params.input.raw_reads_paths.collect{
                 k, v -> v.collect{k2, v2 -> (v2.size() == 1)
                                             ? [k,k2]+v2+[null]
@@ -55,25 +55,27 @@ workflow DISTILLER {
                                  }
                 }.sum()
         ).branch {
-            download_truncate: ( needsDownloading(it[2]) || needsDownloading(it[3]) )
-            local_truncate: (    (params['map'].get('chunksize', 0) > 0)
-                              || (params['input'].get('truncate_fastq_reads', 0) > 0)
-                            )
-            local_no_processing: true
-    }
+            download_truncate:
+                        ( needsDownloading(it[2]) || needsDownloading(it[3]) )
+            local_truncate:
+                        ((params['map'].get('chunksize', 0) > 0) || (params['input'].get('truncate_fastq_reads', 0) > 0))
+            local_no_processing:
+                        true
+        }
 
     /* Download or truncate input data */
-    fastq_download_truncated = download_truncate_chunk_fastqs( LIB_RUN_SOURCES.download_truncate ).output
-    fastq_local_truncated = local_truncate_chunk_fastqs( LIB_RUN_SOURCES.local_truncate ).output
+    fastq_download_truncated = download_truncate_chunk_fastqs( RUN_SOURCES.download_truncate ).output
+    fastq_local_truncated = local_truncate_chunk_fastqs( RUN_SOURCES.local_truncate ).output
 
-    FASTQ = fastq_download_truncated.mix(fastq_local_truncated).transpose()
+    FASTQ = fastq_download_truncated
+        .mix(fastq_local_truncated)
+        .transpose()
         .map{[it[0],
               it[1],
-              // index of the chunk (safety check):
-              checkLeftRightChunk(it[2],it[3]),
+              checkLeftRightChunk(it[2], it[3]), // index of the chunk (safety check)
               it[2],
               it[3]]}
-              .mix(LIB_RUN_SOURCES.local_no_processing.transpose())
+        .mix(RUN_SOURCES.local_no_processing.transpose())
 
     /* Optional quality control */
     if (params.getOrDefault('do_fastqc', 'false').toBoolean()){
@@ -89,26 +91,39 @@ workflow DISTILLER {
              file(params.input.genome.bwa_index_wildcard_path),
             ]])
 
-    INPUT_MAPPING = FASTQ.combine(BWA_INDEX).combine(CHROM_SIZES).multiMap{ it ->
-        fastq: it[0..4]
-        bwa_index: it[5..6]
-        chrom_sizes: it[7]
-    }
+    INPUT_MAPPING = FASTQ
+        .combine(BWA_INDEX)
+        .combine(CHROM_SIZES)
+        .multiMap{ it ->
+            fastq: it[0..4]
+            bwa_index: it[5..6]
+            chrom_sizes: it[7]
+        }
     BAM = map_parse_sort_chunks( INPUT_MAPPING ).output
 
     /* Merge .pairsams into libraries */
-    INPUT_DEDUP = BAM.map {lib, run, chunk, pairsam, bam -> [lib, pairsam]}.groupTuple()
+    INPUT_DEDUP = BAM
+            .map{lib, run, chunk, pairsam, bam -> [lib, pairsam]}
+            .groupTuple()
     PAIRS = merge_dedup_splitbam( INPUT_DEDUP )
+
+//    /* Produce stats with filters: */
+//    if (params.get('stats', [:]).get('use_filters', 'false').toBoolean()) {
+//        INPUT_DEDUP_LIBRARIES = BAM
+//                .map{lib, run, chunk, pairsam, bam -> [lib, pairsam]}
+//        PAIRS_LIBRARIES = merge_dedup_splitbam( INPUT_DEDUP_LIBRARIES )
+//    }
 
     /* Bin indexed .pairs into .cool matrices */
     FILTERS = Channel.from( params.bin.filters.collect{ name, expr -> [name, expr] } )
-    INPUT_BIN = FILTERS.combine( PAIRS.output.map {v -> [v[0], v[1]]} ).combine(CHROM_SIZES)
+    INPUT_BIN = FILTERS
+                .combine( PAIRS.output.map {v -> [v[0], v[1]]} )
+                .combine(CHROM_SIZES)
                 .multiMap{ it ->
                     filter: it[0..1]
                     pairs: it[2..3]
                     chrom_sizes: it[4]
                 }
-
     COOLERS = bin_zoom_library_pairs( INPUT_BIN ).output
 
     /* Merge coolers by groups */
@@ -125,14 +140,17 @@ workflow DISTILLER {
     COOLERS_MERGED = merge_zoom_library_group_coolers( INPUT_COOLERS_MERGE ).output
 
     /* Merge .stats for library groups */
-    INPUT_STATS_MERGE = LIBRARY_GROUPS.combine( PAIRS.stats )
+    INPUT_STATS_MERGE = LIBRARY_GROUPS
+        .combine( PAIRS.stats )
         .filter{ it[1].contains(it[2]) }
         .map {library_group, libraries, lib, stats -> [library_group, stats]}
         .groupTuple()
 
     STATS_MERGED = merge_stats_libraries_into_groups( INPUT_STATS_MERGE ).output
 
-    /* TODO: add multiQC */
+    /* MultiQC report */
+    REPORTS = MULTIQC( STATS_MERGED.map{it[1]} )
+
 }
 
 workflow {
