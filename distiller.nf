@@ -136,6 +136,7 @@ def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1, 
 
     if (use_custom_split) {
         cmd = """
+            #cp -r $HOME/.ncbi/ . # Fix for sra-tools requiring ncbi folder locally
             HOME=`readlink -e ./`
             fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
                         | pyfilesplit --lines 4 \
@@ -146,6 +147,7 @@ def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1, 
         
     } else {
         cmd = """
+            #cp -r $HOME/.ncbi/ .  # Fix for sra-tools requiring ncbi folder locally
             HOME=`readlink -e ./`
             fastq-dump ${file_or_srr} --gzip --split-spot --split-3 ${srr_start_flag} ${srr_end_flag} 
             mv *_1.fastq.gz ${library}.${run}.1.fastq.gz
@@ -161,7 +163,7 @@ def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
                            chunksize=0, threads=1, use_custom_split=true) {
     def cmd = ""
 
-    def srr = ( sra_query =~ /(?:SRR|ERR)\d+/ )[0]
+    def srr = ( sra_query =~ /(?:SRR|ERR|DRR)\d+/ )[0] /* There are three types of accessions, starting with: SRR/ERR/DRR, for SRA/EBI/DDBJ databases */
     def srrnum = srr.substring(3)
 
     def srr_start = 0
