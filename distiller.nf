@@ -9,6 +9,8 @@ vim: syntax=groovy
  * Miscellaneous code for the pipeline
  */
 
+nextflow.enable.dsl=1
+
 MIN_RES = params['bin'].resolutions.collect { it as int }.min()
 ASSEMBLY_NAME = params['input'].genome.assembly_name
 
