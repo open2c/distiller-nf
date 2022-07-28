@@ -14,6 +14,8 @@ nextflow.enable.dsl=1
 MIN_RES = params['bin'].resolutions.collect { it as int }.min()
 ASSEMBLY_NAME = params['input'].genome.assembly_name
 
+SINGLE_END = params['input'].get('single_end', false)
+
 pairsgz_decompress_command = 'bgzip -cd -@ 3'
 
 switch(params.compression_format) {
@@ -136,30 +138,41 @@ def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1, 
     def bgzip_threads = Math.max(1,((threads as int)-2).intdiv(2))
     def cmd = ''
 
-    if (use_custom_split) {
+    if (SINGLE_END) {
         cmd = """
-            #cp -r $HOME/.ncbi/ . # Fix for sra-tools requiring ncbi folder locally
+            cp -r $HOME/.ncbi/ .  # Fix for sra-tools requiring ncbi folder locally
             HOME=`readlink -e ./`
-            fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
-                        | pyfilesplit --lines 4 \
-                            >(bgzip -c -@{bgzip_threads} > ${library}.${run}.1.fastq.gz) \
-                            >(bgzip -c -@{bgzip_threads} > ${library}.${run}.2.fastq.gz) \
-                            | cat """
-
-        
-    } else {
-        cmd = """
-            #cp -r $HOME/.ncbi/ .  # Fix for sra-tools requiring ncbi folder locally
-            HOME=`readlink -e ./`
-            fastq-dump ${file_or_srr} --gzip --split-spot --split-3 ${srr_start_flag} ${srr_end_flag} 
-            mv *_1.fastq.gz ${library}.${run}.1.fastq.gz
-            mv *_2.fastq.gz ${library}.${run}.2.fastq.gz
+            fastq-dump ${file_or_srr} --gzip --split-spot ${srr_start_flag} ${srr_end_flag}
+            mv *.fastq.gz ${library}.${run}.1.fastq.gz
+            touch ${library}.${run}.2.fastq.gz
         """
+    } else {
+        if (use_custom_split) {
+            cmd = """
+                cp -r $HOME/.ncbi/ . # Fix for sra-tools requiring ncbi folder locally
+                HOME=`readlink -e ./`
+                fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
+                            | pyfilesplit --lines 4 \
+                                >(bgzip -c -@{bgzip_threads} > ${library}.${run}.1.fastq.gz) \
+                                >(bgzip -c -@{bgzip_threads} > ${library}.${run}.2.fastq.gz) \
+                                | cat """
+
+
+        } else {
+            cmd = """
+                cp -r $HOME/.ncbi/ .  # Fix for sra-tools requiring ncbi folder locally
+                HOME=`readlink -e ./`
+                fastq-dump ${file_or_srr} --gzip --split-spot --split-3 ${srr_start_flag} ${srr_end_flag}
+                mv *_1.fastq.gz ${library}.${run}.1.fastq.gz
+                mv *_2.fastq.gz ${library}.${run}.2.fastq.gz
+            """
+        }
     }
 
     return cmd
 }
 
+/* TODO: check three functions below whether they work in single-end mode  */
 
 def sraDownloadTruncateCmd(sra_query, library, run, truncate_fastq_reads=0,
                            chunksize=0, threads=1, use_custom_split=true) {
@@ -284,6 +297,7 @@ String fastqLocalTruncateChunkCmd(path, library, run, side,
     return cmd
 }
 
+/* Single-end and minimap modifications start here */
 
 process download_truncate_chunk_fastqs{
     tag "library:${library} run:${run}"
@@ -441,12 +455,12 @@ process fastqc{
 
 
 
-BWA_INDEX = Channel.from([[
-             params.input.genome.bwa_index_wildcard_path
+INDEX = Channel.from([[
+             params.input.genome.genome_index_wildcard_path
                 .split('/')[-1]
                 .replaceAll('\\*$', "")
                 .replaceAll('\\.$', ""),
-             file(params.input.genome.bwa_index_wildcard_path),
+             file(params.input.genome.genome_index_wildcard_path),
             ]])
 
 /*
@@ -458,7 +472,7 @@ process map_parse_sort_chunks {
 
     input:
     set val(library), val(run), val(chunk), file(fastq1), file(fastq2) from LIB_RUN_CHUNK_FASTQS
-    set val(bwa_index_base), file(bwa_index_files) from BWA_INDEX.first()
+    set val(genome_index_base), file(genome_index_files) from INDEX.first()
     file(chrom_sizes) from CHROM_SIZES_FOR_PARSING.first()
 
     output:
@@ -480,29 +494,56 @@ process map_parse_sort_chunks {
         params['parse'].get('keep_unparsed_bams','false').toBoolean() ?
         "| tee >(samtools view -bS > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam)" : "" )
     def parsing_options = params['parse'].get('parsing_options','')
-    def bwa_threads = (task.cpus as int)
+    def mapping_threads = (task.cpus as int)
     def sorting_threads = (task.cpus as int)
 
-    def mapping_command = (
-        trim_options ? 
-        "fastp ${trim_options} \
-        --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json \
-        --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html \
-        -i ${fastq1} -I ${fastq2} --stdout | \
-        bwa mem -p -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
-        - ${keep_unparsed_bams_command}" : \
-        \
-        "bwa mem -t ${bwa_threads} ${mapping_options} -SP ${bwa_index_base} \
-        ${fastq1} ${fastq2} ${keep_unparsed_bams_command}"
-        )
+    def fastq = ""
+    def trim_fastq = ""
+    if (SINGLE_END) {
+        fastq = "${fastq1}"
+        trim_fastq = "-i ${fastq1} -I ${fastq2}"
+    } else {
+        fastq = "${fastq1} ${fastq2}"
+        trim_fastq = "-i ${fastq1}"
+    }
 
+    def mapping_command = ""
+    def parse_method = params['parse'].get('method', 'parse')
+    single_end_flag = SINGLE_END.toBoolean() ? "--single-end" : ""
+    if (params['map'].get('method','bwa mem')=='bwa mem') { /* bwa mem branch */
+            mapping_command = (
+                trim_options ?
+                "fastp ${trim_options} \
+                --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json \
+                --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html \
+                ${trim_fastq} --stdout | \
+                bwa mem -p -t ${mapping_threads} ${mapping_options} -SP ${genome_index_base} \
+                - ${keep_unparsed_bams_command}" : \
+                \
+                "bwa mem -t ${mapping_threads} ${mapping_options} -SP ${genome_index_base} \
+                ${fastq} ${keep_unparsed_bams_command}"
+            )
+        } else { /* minimap2 branch */
+            mapping_command = (
+                trim_options ?
+                "fastp ${trim_options} \
+                --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json \
+                --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html \
+                ${trim_fastq} --stdout | \
+                minimap2 -a -t ${mapping_threads} ${mapping_options} ${genome_index_base} \
+                - ${keep_unparsed_bams_command}" : \
+                \
+                "minimap2 -a -t ${mapping_threads} ${mapping_options} ${genome_index_base} \
+                ${fastq} ${keep_unparsed_bams_command}"
+            )
+        }
 
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
     touch ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.bam
 
     ${mapping_command} \
-    | pairtools parse ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
+    | pairtools ${parse_method} ${single_end_flag} ${dropsam_flag} ${dropreadid_flag} ${dropseq_flag} \
       ${parsing_options} \
       -c ${chrom_sizes} \
       | pairtools sort --nproc ${sorting_threads} \
@@ -533,7 +574,7 @@ process merge_dedup_splitbam {
 
     output:
     set library, "${library}.${ASSEMBLY_NAME}.nodups.pairs.gz",
-                 "${library}.${ASSEMBLY_NAME}.nodups.pairs.gz.px2",
+                 /*"${library}.${ASSEMBLY_NAME}.nodups.pairs.gz.px2",*/
                  "${library}.${ASSEMBLY_NAME}.nodups.bam",
                  "${library}.${ASSEMBLY_NAME}.dups.pairs.gz",
                  "${library}.${ASSEMBLY_NAME}.dups.bam",
@@ -595,7 +636,7 @@ process merge_dedup_splitbam {
         touch ${library}.${ASSEMBLY_NAME}.dups.bam
 
         rm -rf \$TASK_TMP_DIR
-        pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
+        #pairix ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz
         """
 }
 

@@ -24,61 +24,88 @@
 # the last entry in the SRA in the form of "?start=<first>&end=<last>
 input:
     raw_reads_paths:
-        # substitute the location of your fastq files:
-        # an example of a 1-lane library:
-        your_library_name_1:
+        GM12878:
             lane1:
-                - /path/to/your/fastq/from/library1/library1_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library1_side2.fastq.gz
-        # an example of a 2-lane library:
-        # mapped reads from both lanes will be pulled togheter
-        # and deduplicated as one.
-        your_library_name_2:
-            lane1:
-                - /path/to/your/fastq/from/library1/library2_lane1_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library2_lane1_side2.fastq.gz
+                - sra:SRR11589389
             lane2:
-                - /path/to/your/fastq/from/library1/library2_lane2_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library2_lane2_side2.fastq.gz
-        # an example of a 3-lane library:
-        # mapped reads from both lanes will be pulled togheter
-        # and deduplicated as one.
-        your_library_name_3:
-            lane1:
-                - /path/to/your/fastq/from/library1/library3_lane1_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane1_side2.fastq.gz
-            lane2:
-                - /path/to/your/fastq/from/library1/library3_lane2_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane2_side2.fastq.gz
+                - sra:SRR11589390
             lane3:
-                - /path/to/your/fastq/from/library1/library3_lane3_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane3_side2.fastq.gz
-        your_library_online:
+                - sra:SRR11589391
+            lane4:
+                - sra:SRR11589392
+            lane5:
+                - sra:SRR11589393
+            lane6:
+                - sra:SRR11589394
+            lane7:
+                - sra:SRR11589395
+            lane8:
+                - sra:SRR11589396
+            lane9:
+                - sra:SRR11589397
+            lane10:
+                - sra:SRR11589398
+            lane11:
+                - sra:SRR11589399
+            lane12:
+                - sra:SRR11589400
+            lane13:
+                - sra:SRR11589401
+            lane14:
+                - sra:SRR11589402
+            lane15:
+                - sra:SRR11589403
+            lane16:
+                - sra:SRR11589404
+            lane17:
+                - sra:SRR11589405
+            lane18:
+                - sra:SRR11589406
+            lane19:
+                - sra:SRR11589407
+            lane20:
+                - sra:SRR11589408
+            lane21:
+                - sra:SRR11589409
+        HCC1954:
             lane1:
-                # Files can be provided as http/ftp/s3 links
-                - https://github.com/open2c/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
-                - https://github.com/open2c/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
+                - sra:SRR11589410
             lane2:
-                # Alternatively, reads can be downloaded from SRA
-                - sra:SRR2601842
+                - sra:SRR11589411
             lane3:
-                # or like that:
-                - sra:SRR2601843?start=0&end=10000
-
-
-    # independent libraries can be combined together
-    # on the level of binned-data (.cool files)
-    # describe your groupings of choice here:
+                - sra:SRR11589412
+            lane4:
+                - sra:SRR11589413
+        HG002:
+            lane1:
+                - sra:SRR11589414
+            lane2:
+                - sra:SRR11589415
+            lane3:
+                - sra:SRR11589416
+            lane4:
+                - sra:SRR11589417
+            lane5:
+                - sra:SRR11589418
+            lane6:
+                - sra:SRR11589419
+        LNCaP_DHT:
+            lane1:
+                - sra:SRR18173260
+            lane2:
+                - sra:SRR18173261
+        LNCaP_vehicle:
+            lane1:
+                - sra:SRR18173258
+            lane2:
+                - sra:SRR18173259
     library_groups:
-        libraries_1_and_2:
-            - your_library_name_1
-            - your_library_name_2
-        all_libraries:
-            - your_library_name_1
-            - your_library_name_2
-            - your_library_name_3
-            - your_library_online
-
+        all:
+            - GM12878
+            - HCC1954
+            - HG002
+            - LNCaP_DHT
+            - LNCaP_vehicle
 
     # Truncate input fastqs to a small number of reads (e.g. 10000) for
     # semi-dry test runs.
@@ -86,21 +113,25 @@ input:
     # reads is downloaded!
     truncate_fastq_reads: 0
 
+    single_end: true
+
     # Specify a reference genome to align sequenced reads.
     # Provide the genome assembly name, a wildcard path to the BWA index files
     # of the reference genome, and a tab-separated table with contig sizes
     # (known as "chrom.sizes"). The latter is used to specify the subset and the
     # order of contigs in a resulting contact map.
     genome:
-        assembly_name: 'hg19'
-        bwa_index_wildcard_path: '/path/to/your/reference/genome/hg19.fa.*'
-        chrom_sizes_path:   '/path/to/your/reference/genome/hg19.reduced.chrom.sizes'
+        assembly_name: 'hg38'
+        genome_index_wildcard_path: '/home/agalicina/GENOMES/hg38/minimap2/hg38.mmi*'
+        chrom_sizes_path:   '/net/levsha/share/lab/genomes/hg38/hg38.chrom.sizes.reduced'
 
 # Choose if you want to do FastQC of the input files:
 do_fastqc: False
 
 # Control how reads are mapped to the reference genomes.
 map:
+    method: 'minimap2'
+
     # If 'chunksize' is non-zero, each input file gets split into multiple chunks,
     # each mapped separately. Useful for mapping on clusters with many
     # relatively weak nodes.
@@ -110,7 +141,7 @@ map:
     chunksize: 0
 
     # Specify extra BWA mapping options.
-    mapping_options: ''
+    mapping_options: '-x map-ont'
 
     # Specify fastp trim options.
     #i.e. parameters
@@ -126,6 +157,9 @@ map:
 
 # Control how read alignments are converted ('parsed') into Hi-C pairs.
 parse:
+
+    method: "parse2"
+
     # If 'make_pairsam' is True, parsed Hi-C pairs will store complete
     # alignment records in the SAM format (the resulting hybrid between the
     # .pairs and .sam formats is called '.pairsam'). Such files can be useful for
@@ -141,26 +175,26 @@ parse:
     # Phred scores from the SAM alignments in .pairsam and .bam output files.
     # Enable to make lightweight .pairsam/.bam output.
     # NOTE: when 'make_pairsam' is False, 'drop_seq' is ignored.
-    drop_seq: False
+    drop_seq: True
 
     # Enable 'drop_readid' to drop readID from .pairs files to create
     # lightweight .pairs files
     # NOTE: does not affect alignment records in the .pairsam files and
     # subsequently .bam files after .apirsam splitting.
-    drop_readid: True
+    drop_readid: False
 
     # When 'keep_unparsed_bams' is True, distiller preserves the _immediate_
     # output of bwa in a .bam format. Could be used as a faster alternative
     # to 'make_pairsam' when alignments are needed, but tagging them with Hi-C
     # related information is not necessary.
-    keep_unparsed_bams: False
+    keep_unparsed_bams: True
 
     # Pass extra options to pairtools parse, on top of the ones specified by
     # flags 'make_pairsam', 'drop_readid', 'drop_seq'. The default value
     # enables storing MAPQ scores in the .pairsam/.pairs output, which are
     # used later for filtering/binning. The default walks-policy is 'mask'
     # which masks complex walks in long reads.
-    parsing_options: '--add-columns mapq --walks-policy mask'
+    parsing_options: '--add-columns mapq --add-pair-index'
 
 # Control how PCR/optical duplicates are detected in the data.
 dedup:
