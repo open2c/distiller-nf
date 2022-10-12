@@ -548,12 +548,13 @@ process merge_dedup_splitbam {
         "${decompress_command} ${run_pairsam}" :
         "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir \$TASK_TMP_DIR"
     )
+    def dedup_options = params['dedup'].get('dedup_options','')
 
     if(make_pairsam)
         """
         TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
 
-        ${merge_command} | pairtools dedup \
+        ${merge_command} | pairtools dedup ${dedup_options} \
             --max-mismatch ${params.dedup.max_mismatch_bp} \
             --mark-dups \
             --output \
@@ -581,7 +582,7 @@ process merge_dedup_splitbam {
         """
         TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
 
-        ${merge_command} | pairtools dedup \
+        ${merge_command} | pairtools dedup ${dedup_options} \
             --max-mismatch ${params.dedup.max_mismatch_bp} \
             --mark-dups \
             --output ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz \
