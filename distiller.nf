@@ -510,7 +510,8 @@ process map_parse_sort_chunks {
     def mapping_command = ""
     def parse_method = params['parse'].get('method', 'parse')
     single_end_flag = SINGLE_END.toBoolean() ? "--single-end" : ""
-    if (params['map'].get('method','bwa mem')=='bwa mem') { /* bwa mem branch */
+    mapping_method = params['map'].get('method','bwa mem')
+    if (mapping_method=='bwa mem') { /* bwa mem branch */
             mapping_command = (
                 trim_options ?
                 "fastp ${trim_options} \
@@ -523,7 +524,20 @@ process map_parse_sort_chunks {
                 "bwa mem -t ${mapping_threads} ${mapping_options} -SP ${genome_index_base} \
                 ${fastq} ${keep_unparsed_bams_command}"
             )
-        } else { /* minimap2 branch */
+        } else if (mapping_method=='bwa mem2') { /* bwa mem2 branch */
+            mapping_command = (
+                trim_options ?
+                "fastp ${trim_options} \
+                --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json \
+                --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html \
+                ${trim_fastq} --stdout | \
+                bwa mem2 -p -t ${mapping_threads} ${mapping_options} -SP ${genome_index_base} \
+                - ${keep_unparsed_bams_command}" : \
+                \
+                "bwa mem2 -t ${mapping_threads} ${mapping_options} -SP ${genome_index_base} \
+                ${fastq} ${keep_unparsed_bams_command}"
+            )
+        } else if (mapping_method=='minimap2') { /* minimap2 branch */
             mapping_command = (
                 trim_options ?
                 "fastp ${trim_options} \
@@ -536,7 +550,31 @@ process map_parse_sort_chunks {
                 "minimap2 -a -t ${mapping_threads} ${mapping_options} ${genome_index_base} \
                 ${fastq} ${keep_unparsed_bams_command}"
             )
+        } else if (mapping_method=='bwa aln') { /* bwa aln short reads branch */
+            if (trim_options){
+                mapping_command = "fastp ${trim_options} \
+                --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json \
+                --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html \
+                -i ${fastq1} -I ${fastq2} \
+                -o ${fastq1}.trimmed -O ${fastq2}.trimmed
+                bwa aln -t ${bwa_threads} ${mapping_options} ${bwa_index_base} \
+                ${fastq1}.trimmed > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.1.sai
+                bwa aln -t ${bwa_threads} ${mapping_options} ${bwa_index_base} \
+                ${fastq2}.trimmed > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.2.sai
+                bwa sampe ${bwa_index_base} \
+                  ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.1.sai \
+                  ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.2.sai ${fastq1} ${fastq2} "
+            } else {
+                mapping_command = "bwa aln -t ${bwa_threads} ${bwa_index_base} \
+                ${fastq1} > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.1.sai
+                bwa aln -t ${bwa_threads} ${bwa_index_base} \
+                ${fastq2} > ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.2.sai
+                bwa sampe ${bwa_index_base} \
+                  ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.1.sai \
+                  ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.2.sai ${fastq1} ${fastq2} "
+            }
         }
+
 
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
