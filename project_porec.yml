@@ -243,10 +243,10 @@ bin:
 ########################################
 output:
     dirs:
-        processed_fastqs: 'results/processed_fastqs/'
-        mapped_parsed_sorted_chunks: 'results/mapped_parsed_sorted_chunks'
-        fastqc: 'results/fastqc/'
-        pairs_library: 'results/pairs_library'
-        coolers_library: 'results/coolers_library/'
-        coolers_library_group: 'results/coolers_library_group/'
-        stats_library_group: 'results/stats_library_group/'
+        processed_fastqs: 'results_minimap2/processed_fastqs/'
+        mapped_parsed_sorted_chunks: 'results_minimap2/mapped_parsed_sorted_chunks'
+        fastqc: 'results_minimap2/fastqc/'
+        pairs_library: 'results_minimap2/pairs_library'
+        coolers_library: 'results_minimap2/coolers_library/'
+        coolers_library_group: 'results_minimap2/coolers_library_group/'
+        stats_library_group: 'results_minimap2/stats_library_group/'

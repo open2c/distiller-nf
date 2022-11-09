@@ -93,7 +93,7 @@ input:
     # order of contigs in a resulting contact map.
     genome:
         assembly_name: 'hg19'
-        bwa_index_wildcard_path: '/path/to/your/reference/genome/hg19.fa.*'
+        genome_index_wildcard_path: '/path/to/your/reference/genome/hg19.fa.*'
         chrom_sizes_path:   '/path/to/your/reference/genome/hg19.reduced.chrom.sizes'
 
 # Choose if you want to do FastQC of the input files:
