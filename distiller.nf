@@ -139,7 +139,7 @@ def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1, 
     if (use_custom_split) {
         cmd = """
             #cp -r $HOME/.ncbi/ . # Fix for sra-tools requiring ncbi folder locally
-            HOME=`readlink -e ./`
+            #HOME=`readlink -e ./`
             fastq-dump ${file_or_srr} -Z --split-spot ${srr_start_flag} ${srr_end_flag} \
                         | pyfilesplit --lines 4 \
                             >(bgzip -c -@{bgzip_threads} > ${library}.${run}.1.fastq.gz) \
@@ -150,7 +150,7 @@ def fastqDumpCmd(file_or_srr, library, run, srr_start=0, srr_end=-1, threads=1, 
     } else {
         cmd = """
             #cp -r $HOME/.ncbi/ .  # Fix for sra-tools requiring ncbi folder locally
-            HOME=`readlink -e ./`
+            #HOME=`readlink -e ./`
             fastq-dump ${file_or_srr} --gzip --split-spot --split-3 ${srr_start_flag} ${srr_end_flag} 
             mv *_1.fastq.gz ${library}.${run}.1.fastq.gz
             mv *_2.fastq.gz ${library}.${run}.2.fastq.gz
@@ -548,12 +548,13 @@ process merge_dedup_splitbam {
         "${decompress_command} ${run_pairsam}" :
         "pairtools merge ${run_pairsam} --nproc ${task.cpus} --tmpdir \$TASK_TMP_DIR"
     )
+    def dedup_options = params['dedup'].get('dedup_options','')
 
     if(make_pairsam)
         """
         TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
 
-        ${merge_command} | pairtools dedup \
+        ${merge_command} | pairtools dedup ${dedup_options} \
             --max-mismatch ${params.dedup.max_mismatch_bp} \
             --mark-dups \
             --output \
@@ -581,7 +582,7 @@ process merge_dedup_splitbam {
         """
         TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
 
-        ${merge_command} | pairtools dedup \
+        ${merge_command} | pairtools dedup ${dedup_options} \
             --max-mismatch ${params.dedup.max_mismatch_bp} \
             --mark-dups \
             --output ${library}.${ASSEMBLY_NAME}.nodups.pairs.gz \

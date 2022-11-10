@@ -170,6 +170,14 @@ dedup:
     # duplicates.
     max_mismatch_bp: 1
 
+    # Pass extra options to pairtools dedup, which will regulate the working engine
+    # (--backend can be set to "scipy", "sklearn" or "cython"; scipy by default),
+    # the chunk size can be set for scipy and sklearn backends: --chunksize 
+    # is 100000 by default, which consumes several Gb per process. It can be set to 
+    # smaller values (e.g. 10000), which will increase processing time but decrease memory.
+    # Note that on cluster the job can be "Killed" if the task uses more than the memory limit.
+    dedup_options: ''
+
 # Control how Hi-C pairs are binned into contact maps, stored in .cool files.
 bin:
     # Specify which resolutions should be included in the multi-resolution .cool file.
