@@ -3,10 +3,15 @@ input:
         G1:
             lane1:
                 - sra:SRR6417986 # Example dataset from Ohno 2019
+        G1_trimmed:
+            lane1: 
+                - results_shortreads/processed_fastqs/G1.lane1.0.trimmed.1.fastq.gz
+                - results_shortreads/processed_fastqs/G1.lane1.0.trimmed.2.fastq.gz
 
     library_groups:
         all:
             - G1
+            - G1_trimmed
 
     truncate_fastq_reads: 0
 

@@ -24,7 +24,7 @@
 # the last entry in the SRA in the form of "?start=<first>&end=<last>
 input:
     raw_reads_paths:
-        GM12878:
+        GM12878: # Example dataset from Deshpande et al. 2022; obtained by `python bin/geo2yml.py GSE149117
             lane1:
                 - sra:SRR11589389
             lane2:
