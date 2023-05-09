@@ -496,6 +496,13 @@ process map_parse_sort_chunks {
         ${fastq1} ${fastq2} ${keep_unparsed_bams_command}"
         )
 
+    def restrict = params.get('restrict', []).get('restriction_sites', '')
+    def restriction_command = (
+        restrict ?
+        "-o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} | pairtools restrict -f ${restrict} --nproc-in ${sorting_threads} --nproc-out ${sorting_threads} " : \
+        "-o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} "
+        )
+
 
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
@@ -506,14 +513,14 @@ process map_parse_sort_chunks {
       ${parsing_options} \
       -c ${chrom_sizes} \
       | pairtools sort --nproc ${sorting_threads} \
-                     -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} \
-                     --tmpdir \$TASK_TMP_DIR \
+                     --tmpdir \$TASK_TMP_DIR ${restriction_command}\
       | cat
  
     rm -rf \$TASK_TMP_DIR
     """
 
 }
+
 
 /*
  * Merge .pairsams into libraries

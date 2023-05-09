@@ -1,100 +1,1579 @@
-#########################################
-# THIS IS A TYPICAL project.yml TEMPLATE
-# most of the settings present here
-# are GO for mapping production data
-# but nonetheless user must consider
-# carefully every presented option
-#########################################
-
-#########################################
-# When commmenting parameters out, make sure
-# that each section still has at least one
-# uncommented parameter, otherwise it
-# will not get properly parsed.
-#########################################
-
-
-
-#######################################
-# provide paths to your raw input data (fastq-s):
-#######################################
-# Fastqs can be provided as:
-# -- a pairs of relative/absolute paths
-# -- sra:<SRA_NUMBER>, optionally followed by the indices of the first and
-# the last entry in the SRA in the form of "?start=<first>&end=<last>
 input:
-    raw_reads_paths:
-        # substitute the location of your fastq files:
-        # an example of a 1-lane library:
-        your_library_name_1:
-            lane1:
-                - /path/to/your/fastq/from/library1/library1_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library1_side2.fastq.gz
-        # an example of a 2-lane library:
-        # mapped reads from both lanes will be pulled togheter
-        # and deduplicated as one.
-        your_library_name_2:
-            lane1:
-                - /path/to/your/fastq/from/library1/library2_lane1_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library2_lane1_side2.fastq.gz
-            lane2:
-                - /path/to/your/fastq/from/library1/library2_lane2_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library2_lane2_side2.fastq.gz
-        # an example of a 3-lane library:
-        # mapped reads from both lanes will be pulled togheter
-        # and deduplicated as one.
-        your_library_name_3:
-            lane1:
-                - /path/to/your/fastq/from/library1/library3_lane1_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane1_side2.fastq.gz
-            lane2:
-                - /path/to/your/fastq/from/library1/library3_lane2_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane2_side2.fastq.gz
-            lane3:
-                - /path/to/your/fastq/from/library1/library3_lane3_side1.fastq.gz
-                - /path/to/your/fastq/from/library1/library3_lane3_side2.fastq.gz
-        your_library_online:
-            lane1:
-                # Files can be provided as http/ftp/s3 links
-                - https://github.com/open2c/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_1.fastq.gz
-                - https://github.com/open2c/distiller-test-data/raw/master/fastq/MATalpha_R1/lane2/SRR2601843_2.fastq.gz
-            lane2:
-                # Alternatively, reads can be downloaded from SRA
-                - sra:SRR2601842
-            lane3:
-                # or like that:
-                - sra:SRR2601843?start=0&end=10000
-
-
-    # independent libraries can be combined together
-    # on the level of binned-data (.cool files)
-    # describe your groupings of choice here:
-    library_groups:
-        libraries_1_and_2:
-            - your_library_name_1
-            - your_library_name_2
-        all_libraries:
-            - your_library_name_1
-            - your_library_name_2
-            - your_library_name_3
-            - your_library_online
-
-
-    # Truncate input fastqs to a small number of reads (e.g. 10000) for
-    # semi-dry test runs.
-    # NOTE: when the inputs are specified as an SRA number, only this number of
-    # reads is downloaded!
-    truncate_fastq_reads: 0
-
-    # Specify a reference genome to align sequenced reads.
-    # Provide the genome assembly name, a wildcard path to the BWA index files
-    # of the reference genome, and a tab-separated table with contig sizes
-    # (known as "chrom.sizes"). The latter is used to specify the subset and the
-    # order of contigs in a resulting contact map.
     genome:
-        assembly_name: 'hg19'
-        bwa_index_wildcard_path: '/path/to/your/reference/genome/hg19.fa.*'
-        chrom_sizes_path:   '/path/to/your/reference/genome/hg19.reduced.chrom.sizes'
+        assembly_name: mm10
+        bwa_index_wildcard_path: /net/levsha/share/lab/genomes/genomes/mm10/index-bwa/mm10.fa.*
+        chrom_sizes_path: /net/levsha/share/lab/genomes/genomes/mm10/mm10.chrom.sizes.reduced
+    raw_reads_paths:
+        100_pronucleus_male:
+            lane1:
+                - sra:SRR3344048
+        101_oocyte_SN:
+            lane1:
+                - sra:SRR3344050
+        102_K562-B:
+            lane1:
+                - sra:SRR3344068
+            lane2:
+                - sra:SRR4841779
+        103_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3344051
+            lane2:
+                - sra:SRR3344052
+        104_pronucleus_female:
+            lane1:
+                - sra:SRR3344054
+        105_pronucleus_male:
+            lane1:
+                - sra:SRR3344053
+        106_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3344057
+        107_pronucleus_w-o-inh-both:
+            lane1:
+                - sra:SRR3344056
+        108_pronucleus_male:
+            lane1:
+                - sra:SRR4784124
+        109_pronucleus_female:
+            lane1:
+                - sra:SRR3344059
+        10_oocyte_NSN:
+            lane1:
+                - sra:SRR3343958
+            lane2:
+                - sra:SRR3343959
+        110_K562-B:
+            lane1:
+                - sra:SRR3344084
+            lane2:
+                - sra:SRR4841780
+        111_pronucleus_female:
+            lane1:
+                - sra:SRR4784120
+        112_pronucleus_female:
+            lane1:
+                - sra:SRR4784122
+        113_pronucleus_male:
+            lane1:
+                - sra:SRR4784128
+        114_oocyte_SN:
+            lane1:
+                - sra:SRR3344062
+        115_pronucleus_female:
+            lane1:
+                - sra:SRR3344063
+        116_pronucleus_male:
+            lane1:
+                - sra:SRR4784134
+        117_pronucleus_female:
+            lane1:
+                - sra:SRR3344066
+        118_pronucleus_male:
+            lane1:
+                - sra:SRR3344061
+        119_pronucleus_w-o-inh-female:
+            lane1:
+                - sra:SRR3344064
+            lane2:
+                - sra:SRR3344065
+        11_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343957
+        120_oocyte_Intermediate-Hoechst:
+            lane1:
+                - sra:SRR4784140
+        121_pronucleus_male:
+            lane1:
+                - sra:SRR3344067
+        122_oocyte_SN:
+            lane1:
+                - sra:SRR3344069
+        123_K562-B:
+            lane1:
+                - sra:SRR3344093
+            lane2:
+                - sra:SRR4841781
+        124_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3344073
+        125_oocyte_SN:
+            lane1:
+                - sra:SRR3344072
+        126_pronucleus_male:
+            lane1:
+                - sra:SRR4784125
+        127_pronucleus_male:
+            lane1:
+                - sra:SRR3344071
+        128_pronucleus_female:
+            lane1:
+                - sra:SRR4784121
+        129_pronucleus_female:
+            lane1:
+                - sra:SRR3344077
+        12_oocyte_NSN:
+            lane1:
+                - sra:SRR3343960
+        130_oocyte_SN:
+            lane1:
+                - sra:SRR3344076
+        131_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784142
+        132_oocyte_SN:
+            lane1:
+                - sra:SRR3344080
+        133_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344078
+            lane2:
+                - sra:SRR3344079
+        134_oocyte_NSN:
+            lane1:
+                - sra:SRR3344082
+        135_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3344081
+        136_pronucleus_w-o-inh-female:
+            lane1:
+                - sra:SRR3344083
+        137_pronucleus_male:
+            lane1:
+                - sra:SRR4784131
+        138_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784141
+        139_pronucleus_male:
+            lane1:
+                - sra:SRR4784123
+        13_oocyte_SN:
+            lane1:
+                - sra:SRR3343956
+        140_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784138
+        141_K562-B:
+            lane1:
+                - sra:SRR3344085
+        142_pronucleus_female:
+            lane1:
+                - sra:SRR3344087
+        143_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3344088
+        144_oocyte_SN:
+            lane1:
+                - sra:SRR3344086
+        145_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784147
+        146_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784148
+        147_pronucleus_male:
+            lane1:
+                - sra:SRR3344089
+        148_pronucleus_female:
+            lane1:
+                - sra:SRR3344090
+        149_pronucleus_w-o-inh-both:
+            lane1:
+                - sra:SRR3344091
+        14_oocyte_SN:
+            lane1:
+                - sra:SRR3343963
+        150_oocyte_SN:
+            lane1:
+                - sra:SRR3344092
+        151_pronucleus_female:
+            lane1:
+                - sra:SRR3344094
+        152_oocyte_NSN:
+            lane1:
+                - sra:SRR3344096
+        153_oocyte_NSN:
+            lane1:
+                - sra:SRR3344095
+        154_pronucleus_male:
+            lane1:
+                - sra:SRR3344099
+        155_oocyte_NSN:
+            lane1:
+                - sra:SRR3344097
+        156_K562-A:
+            lane1:
+                - sra:SRR3344098
+        157_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR4784154
+        158_pronucleus_male:
+            lane1:
+                - sra:SRR4784132
+        159_oocyte_NSN:
+            lane1:
+                - sra:SRR3344100
+        15_oocyte_NSN:
+            lane1:
+                - sra:SRR3343961
+            lane2:
+                - sra:SRR3343962
+        160_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784137
+        161_oocyte_SN:
+            lane1:
+                - sra:SRR3344101
+        162_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3344102
+        163_oocyte_SN:
+            lane1:
+                - sra:SRR3344103
+        164_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR4784155
+        165_oocyte_SN:
+            lane1:
+                - sra:SRR3344104
+        166_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR4784143
+        167_oocyte_SN:
+            lane1:
+                - sra:SRR3344106
+        168_oocyte_NSN:
+            lane1:
+                - sra:SRR3344105
+        169_pronucleus_female:
+            lane1:
+                - sra:SRR3344107
+        16_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343964
+        170_oocyte_SN:
+            lane1:
+                - sra:SRR3344108
+        171_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784152
+        172_oocyte_SN:
+            lane1:
+                - sra:SRR3344112
+        173_oocyte_SN:
+            lane1:
+                - sra:SRR3344110
+        174_oocyte_SN:
+            lane1:
+                - sra:SRR3344113
+        175_oocyte_SN:
+            lane1:
+                - sra:SRR3344114
+        176_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784149
+        177_oocyte_SN:
+            lane1:
+                - sra:SRR3344115
+        178_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3344116
+        179_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784153
+        17_oocyte_NSN:
+            lane1:
+                - sra:SRR3343966
+        180_oocyte_NSN:
+            lane1:
+                - sra:SRR3344118
+        181_oocyte_SN:
+            lane1:
+                - sra:SRR3344119
+        182_oocyte_NSN:
+            lane1:
+                - sra:SRR3344121
+        183_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3344117
+        184_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344122
+        185_oocyte_SN:
+            lane1:
+                - sra:SRR3344120
+        186_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784150
+        187_pronucleus_female:
+            lane1:
+                - sra:SRR3344123
+        188_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784151
+        189_oocyte_NSN:
+            lane1:
+                - sra:SRR3344124
+        18_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343965
+        190_pronucleus_female:
+            lane1:
+                - sra:SRR3344125
+        191_oocyte_SN:
+            lane1:
+                - sra:SRR3344126
+        192_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR4784144
+        193_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784136
+        194_oocyte_SN:
+            lane1:
+                - sra:SRR3344128
+        195_pronucleus_male:
+            lane1:
+                - sra:SRR3344127
+        196_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3344129
+        197_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR4784145
+        198_pronucleus_female:
+            lane1:
+                - sra:SRR3344132
+        199_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344130
+        19_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343967
+        1_oocyte_NSN:
+            lane1:
+                - sra:SRR3343944
+            lane2:
+                - sra:SRR3343945
+        200_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3344131
+        201_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR4784157
+        202_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3344133
+        203_pronucleus_male:
+            lane1:
+                - sra:SRR3344134
+        204_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344137
+        205_pronucleus_female:
+            lane1:
+                - sra:SRR3344135
+        206_pronucleus_male:
+            lane1:
+                - sra:SRR3344139
+        207_pronucleus_w-o-inh-female:
+            lane1:
+                - sra:SRR3344138
+        208_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3344140
+        209_pronucleus_male:
+            lane1:
+                - sra:SRR3344141
+        20_oocyte_SN:
+            lane1:
+                - sra:SRR3343969
+        210_pronucleus_female:
+            lane1:
+                - sra:SRR3344142
+        211_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3344146
+        212_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344144
+        213_pronucleus_female:
+            lane1:
+                - sra:SRR3344147
+        214_pronucleus_w-o-inh-female:
+            lane1:
+                - sra:SRR3344145
+        215_K562-A:
+            lane1:
+                - sra:SRR3344143
+        216_pronucleus_female:
+            lane1:
+                - sra:SRR3344148
+        217_K562-B:
+            lane1:
+                - sra:SRR3344149
+        218_oocyte_NSN:
+            lane1:
+                - sra:SRR3344155
+        219_oocyte_SN:
+            lane1:
+                - sra:SRR3344158
+        21_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343968
+        220_K562-B:
+            lane1:
+                - sra:SRR3344151
+        221_K562-A:
+            lane1:
+                - sra:SRR3344152
+        222_K562-B:
+            lane1:
+                - sra:SRR3344153
+        223_K562-B:
+            lane1:
+                - sra:SRR3344157
+        224_K562-B:
+            lane1:
+                - sra:SRR3344164
+        225_K562-A:
+            lane1:
+                - sra:SRR3344154
+        226_K562-B:
+            lane1:
+                - sra:SRR3344165
+        227_K562-A:
+            lane1:
+                - sra:SRR3344156
+        228_K562-B:
+            lane1:
+                - sra:SRR3344160
+        229_K562-A:
+            lane1:
+                - sra:SRR3344170
+        22_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343971
+        230_K562-A:
+            lane1:
+                - sra:SRR3344159
+        231_K562-A:
+            lane1:
+                - sra:SRR3344162
+        232_K562-A:
+            lane1:
+                - sra:SRR3344175
+        233_K562-A:
+            lane1:
+                - sra:SRR3344169
+        234_K562-A:
+            lane1:
+                - sra:SRR3344168
+        235_K562-A:
+            lane1:
+                - sra:SRR3344171
+        236_K562-A:
+            lane1:
+                - sra:SRR3344167
+        237_K562-A:
+            lane1:
+                - sra:SRR3344163
+        238_K562-A:
+            lane1:
+                - sra:SRR3344173
+        239_K562-A:
+            lane1:
+                - sra:SRR3344161
+        23_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343970
+        240_K562-A:
+            lane1:
+                - sra:SRR3344174
+        241_K562-A:
+            lane1:
+                - sra:SRR3344172
+        242_K562-A:
+            lane1:
+                - sra:SRR3344176
+        24_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3343972
+            lane2:
+                - sra:SRR3343973
+        25_oocyte_NSN:
+            lane1:
+                - sra:SRR3343975
+        26_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR3343974
+        27_oocyte_SN:
+            lane1:
+                - sra:SRR3343977
+        28_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343976
+        29_oocyte_SN:
+            lane1:
+                - sra:SRR3343978
+        2_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343948
+        30_oocyte_NSN:
+            lane1:
+                - sra:SRR3343980
+        31_oocyte_SN:
+            lane1:
+                - sra:SRR3343979
+        32_oocyte_NSN:
+            lane1:
+                - sra:SRR3343982
+        33_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343981
+        34_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343986
+        35_oocyte_SN:
+            lane1:
+                - sra:SRR3343983
+            lane2:
+                - sra:SRR3343984
+        36_pronucleus_w-o-inh-both:
+            lane1:
+                - sra:SRR3343987
+            lane2:
+                - sra:SRR3343988
+        37_oocyte_SN:
+            lane1:
+                - sra:SRR3343990
+        38_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3343985
+        39_oocyte_SN:
+            lane1:
+                - sra:SRR3343989
+        3_oocyte_SN:
+            lane1:
+                - sra:SRR3343952
+        40_oocyte_NSN:
+            lane1:
+                - sra:SRR3343998
+        41_oocyte_NSN:
+            lane1:
+                - sra:SRR3343997
+        42_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343993
+        43_oocyte_Intermediate:
+            lane1:
+                - sra:SRR3343995
+        44_oocyte_NSN:
+            lane1:
+                - sra:SRR3343999
+        45_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3343991
+            lane2:
+                - sra:SRR3343992
+        46_oocyte_SN:
+            lane1:
+                - sra:SRR3344002
+        47_oocyte_NSN:
+            lane1:
+                - sra:SRR3344000
+        48_oocyte_NSN:
+            lane1:
+                - sra:SRR3344003
+        49_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343994
+        4_oocyte_NSN:
+            lane1:
+                - sra:SRR3343946
+            lane2:
+                - sra:SRR3343947
+        50_oocyte_Intermediate-Hoechst:
+            lane1:
+                - sra:SRR3343996
+        51_oocyte_SN:
+            lane1:
+                - sra:SRR3344001
+        52_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3344005
+        53_pronucleus_w-o-inh-both:
+            lane1:
+                - sra:SRR3344006
+            lane2:
+                - sra:SRR3344007
+        54_K562-B:
+            lane1:
+                - sra:SRR3344037
+            lane2:
+                - sra:SRR4841775
+        55_oocyte_NSN:
+            lane1:
+                - sra:SRR3344008
+        56_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR4784156
+        57_oocyte_Intermediate-Hoechst:
+            lane1:
+                - sra:SRR3344010
+        58_K562-B:
+            lane1:
+                - sra:SRR3344049
+            lane2:
+                - sra:SRR4841776
+        59_oocyte_NSN:
+            lane1:
+                - sra:SRR3344009
+        5_oocyte_NSN:
+            lane1:
+                - sra:SRR3343950
+            lane2:
+                - sra:SRR3343951
+        60_pronucleus_female:
+            lane1:
+                - sra:SRR3344011
+        61_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR4784146
+        62_oocyte_NSN:
+            lane1:
+                - sra:SRR3344004
+        63_pronucleus_male:
+            lane1:
+                - sra:SRR4784135
+        64_pronucleus_female:
+            lane1:
+                - sra:SRR3344012
+        65_oocyte_NSN:
+            lane1:
+                - sra:SRR3344017
+        66_pronucleus_female:
+            lane1:
+                - sra:SRR3344016
+        67_pronucleus_female:
+            lane1:
+                - sra:SRR3344013
+        68_oocyte_SN:
+            lane1:
+                - sra:SRR3344022
+        69_pronucleus_w-o-inh-female:
+            lane1:
+                - sra:SRR3344020
+            lane2:
+                - sra:SRR3344021
+        6_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343949
+        70_pronucleus_w-o-inh-undef_sex:
+            lane1:
+                - sra:SRR3344014
+            lane2:
+                - sra:SRR3344015
+        71_pronucleus_female:
+            lane1:
+                - sra:SRR3344025
+        72_K562-B:
+            lane1:
+                - sra:SRR3344055
+            lane2:
+                - sra:SRR4841777
+        73_pronucleus_female:
+            lane1:
+                - sra:SRR3344023
+        74_pronucleus_male:
+            lane1:
+                - sra:SRR4784133
+        75_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344024
+        76_pronucleus_female:
+            lane1:
+                - sra:SRR3344030
+        77_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344018
+            lane2:
+                - sra:SRR3344019
+        78_pronucleus_w-o-inh-female:
+            lane1:
+                - sra:SRR3344028
+            lane2:
+                - sra:SRR3344029
+        79_K562-B:
+            lane1:
+                - sra:SRR3344058
+            lane2:
+                - sra:SRR4841778
+        7_oocyte_Intermediate:
+            lane1:
+                - sra:SRR3343954
+        80_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344026
+            lane2:
+                - sra:SRR3344027
+        81_pronucleus_female:
+            lane1:
+                - sra:SRR3344032
+        82_oocyte_SN:
+            lane1:
+                - sra:SRR3344031
+        83_oocyte_SN:
+            lane1:
+                - sra:SRR3344036
+        84_oocyte_Intermediate-Hoechst:
+            lane1:
+                - sra:SRR3344033
+        85_pronucleus_male:
+            lane1:
+                - sra:SRR4784130
+        86_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR3344041
+        87_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344039
+            lane2:
+                - sra:SRR3344040
+        88_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3344038
+        89_pronucleus_male:
+            lane1:
+                - sra:SRR4784129
+        8_oocyte_SN:
+            lane1:
+                - sra:SRR3343955
+        90_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344042
+        91_pronucleus_female:
+            lane1:
+                - sra:SRR3344035
+        92_pronucleus_female:
+            lane1:
+                - sra:SRR3344046
+        93_oocyte_NSN-Hoechst:
+            lane1:
+                - sra:SRR4784139
+        94_pronucleus_female:
+            lane1:
+                - sra:SRR3344044
+        95_pronucleus_female:
+            lane1:
+                - sra:SRR3344043
+        96_pronucleus_male:
+            lane1:
+                - sra:SRR4784127
+        97_pronucleus_male:
+            lane1:
+                - sra:SRR4784126
+        98_pronucleus_w-o-inh-male:
+            lane1:
+                - sra:SRR3344045
+        99_oocyte_SN:
+            lane1:
+                - sra:SRR3344047
+        9_oocyte_SN-Hoechst:
+            lane1:
+                - sra:SRR3343953
+        K562_bulkA:
+            lane1:
+                - sra:SRR3343943
+        K562_bulkB:
+            lane1:
+                - sra:SRR3343942
+        MEL_cells_1_10_min_fixation:
+            lane1:
+                - sra:SRR3344177
+        MEL_cells_2_15_min_fixation:
+            lane1:
+                - sra:SRR3344178
+        100_G2:
+            lane1:
+                - sra:SRR5892504
+        101_G2:
+            lane1:
+                - sra:SRR5892505
+        102_G2:
+            lane1:
+                - sra:SRR5892506
+        103_G2:
+            lane1:
+                - sra:SRR5892507
+        104_G2:
+            lane1:
+                - sra:SRR5892508
+        105_Scc1-control:
+            lane1:
+                - sra:SRR6238891
+        106_Scc1-control:
+            lane1:
+                - sra:SRR6238892
+        107_Scc1-control:
+            lane1:
+                - sra:SRR6238893
+        108_Scc1-control:
+            lane1:
+                - sra:SRR6238894
+        109_Scc1-KO:
+            lane1:
+                - sra:SRR6238895
+        10_Scc1_KO:
+            lane1:
+                - sra:SRR5761960
+        110_Scc1-KO:
+            lane1:
+                - sra:SRR6238896
+        111_Scc1-KO:
+            lane1:
+                - sra:SRR6238897
+        112_Scc1-KO:
+            lane1:
+                - sra:SRR6238898
+        113_Scc1-KO:
+            lane1:
+                - sra:SRR6238899
+        114_Scc1-KO:
+            lane1:
+                - sra:SRR6238900
+        115_Scc1-KO:
+            lane1:
+                - sra:SRR6238901
+        116_Scc1-KO:
+            lane1:
+                - sra:SRR6238902
+        117_Scc1-KO:
+            lane1:
+                - sra:SRR6238903
+        118_Scc1-KO:
+            lane1:
+                - sra:SRR6238904
+        119_Scc1-KO:
+            lane1:
+                - sra:SRR6238905
+        11_Scc1_flox:
+            lane1:
+                - sra:SRR5761961
+        120_Scc1-KO:
+            lane1:
+                - sra:SRR6238906
+        121_Scc1-control:
+            lane1:
+                - sra:SRR6238907
+        122_Scc1-control:
+            lane1:
+                - sra:SRR6238908
+        123_Scc1-control:
+            lane1:
+                - sra:SRR6238909
+        124_Scc1-control:
+            lane1:
+                - sra:SRR6238910
+        125_Wapl-KO:
+            lane1:
+                - sra:SRR6238911
+            lane2:
+                - sra:SRR6238912
+            lane3:
+                - sra:SRR6238913
+            lane4:
+                - sra:SRR6238914
+        126_Wapl-KO:
+            lane1:
+                - sra:SRR6238915
+            lane2:
+                - sra:SRR6238916
+            lane3:
+                - sra:SRR6238917
+            lane4:
+                - sra:SRR6238918
+        127_Wapl-KO:
+            lane1:
+                - sra:SRR6238919
+            lane2:
+                - sra:SRR6238920
+            lane3:
+                - sra:SRR6238921
+            lane4:
+                - sra:SRR6238922
+        128_Wapl-KO:
+            lane1:
+                - sra:SRR6238923
+            lane2:
+                - sra:SRR6238924
+            lane3:
+                - sra:SRR6238925
+            lane4:
+                - sra:SRR6238926
+        129_Wapl-KO:
+            lane1:
+                - sra:SRR6238927
+            lane2:
+                - sra:SRR6238928
+            lane3:
+                - sra:SRR6238929
+            lane4:
+                - sra:SRR6238930
+        12_Scc1_flox:
+            lane1:
+                - sra:SRR5761962
+        130_Wapl-KO:
+            lane1:
+                - sra:SRR6238931
+            lane2:
+                - sra:SRR6238932
+            lane3:
+                - sra:SRR6238933
+            lane4:
+                - sra:SRR6238934
+        131_Wapl-KO:
+            lane1:
+                - sra:SRR6238935
+            lane2:
+                - sra:SRR6238936
+            lane3:
+                - sra:SRR6238937
+            lane4:
+                - sra:SRR6238938
+        132_Wapl-KO:
+            lane1:
+                - sra:SRR6238939
+            lane2:
+                - sra:SRR6238940
+            lane3:
+                - sra:SRR6238941
+            lane4:
+                - sra:SRR6238942
+        133_Wapl-KO:
+            lane1:
+                - sra:SRR6238943
+            lane2:
+                - sra:SRR6238944
+            lane3:
+                - sra:SRR6238945
+            lane4:
+                - sra:SRR6238946
+        134_Wapl-control:
+            lane1:
+                - sra:SRR6238947
+            lane2:
+                - sra:SRR6238948
+            lane3:
+                - sra:SRR6238949
+            lane4:
+                - sra:SRR6238950
+        135_Wapl-control:
+            lane1:
+                - sra:SRR6238951
+            lane2:
+                - sra:SRR6238952
+            lane3:
+                - sra:SRR6238953
+            lane4:
+                - sra:SRR6238954
+        136_Wapl-control:
+            lane1:
+                - sra:SRR6238955
+            lane2:
+                - sra:SRR6238956
+            lane3:
+                - sra:SRR6238957
+            lane4:
+                - sra:SRR6238958
+        137_Wapl-control:
+            lane1:
+                - sra:SRR6238959
+            lane2:
+                - sra:SRR6238960
+            lane3:
+                - sra:SRR6238961
+            lane4:
+                - sra:SRR6238962
+        138_Wapl-control:
+            lane1:
+                - sra:SRR6238963
+            lane2:
+                - sra:SRR6238964
+            lane3:
+                - sra:SRR6238965
+            lane4:
+                - sra:SRR6238966
+        139_Wapl-control:
+            lane1:
+                - sra:SRR6238967
+            lane2:
+                - sra:SRR6238968
+            lane3:
+                - sra:SRR6238969
+            lane4:
+                - sra:SRR6238970
+        13_Scc1_flox:
+            lane1:
+                - sra:SRR5761963
+        140_Wapl-control:
+            lane1:
+                - sra:SRR6238971
+            lane2:
+                - sra:SRR6238972
+            lane3:
+                - sra:SRR6238973
+            lane4:
+                - sra:SRR6238974
+        141_Wapl-control:
+            lane1:
+                - sra:SRR6238975
+            lane2:
+                - sra:SRR6238976
+            lane3:
+                - sra:SRR6238977
+            lane4:
+                - sra:SRR6238978
+        142_Wapl-control:
+            lane1:
+                - sra:SRR6238979
+            lane2:
+                - sra:SRR6238980
+            lane3:
+                - sra:SRR6238981
+            lane4:
+                - sra:SRR6238982
+        143_Wapl-control:
+            lane1:
+                - sra:SRR6238983
+            lane2:
+                - sra:SRR6238984
+            lane3:
+                - sra:SRR6238985
+            lane4:
+                - sra:SRR6238986
+        144_Wapl-control:
+            lane1:
+                - sra:SRR6238987
+            lane2:
+                - sra:SRR6238988
+            lane3:
+                - sra:SRR6238989
+            lane4:
+                - sra:SRR6238990
+        14_Scc1_flox:
+            lane1:
+                - sra:SRR5761964
+        15_Scc1_flox:
+            lane1:
+                - sra:SRR5761965
+        16_Scc1_flox:
+            lane1:
+                - sra:SRR5761966
+        17_Scc1_flox:
+            lane1:
+                - sra:SRR5761967
+        18_Scc1_flox:
+            lane1:
+                - sra:SRR5761968
+        19_Wapl_flox:
+            lane1:
+                - sra:SRR5761969
+        1_Scc1_KO:
+            lane1:
+                - sra:SRR5761951
+        20_Wapl_flox:
+            lane1:
+                - sra:SRR5761970
+        21_Wapl_flox:
+            lane1:
+                - sra:SRR5761971
+        22_Wapl_flox:
+            lane1:
+                - sra:SRR5761972
+        23_Wapl_KO:
+            lane1:
+                - sra:SRR5761973
+        24_Wapl_KO:
+            lane1:
+                - sra:SRR5761974
+        25_Wapl_KO:
+            lane1:
+                - sra:SRR5761975
+        26_Wapl_KO:
+            lane1:
+                - sra:SRR5761976
+        27_Wapl_KO:
+            lane1:
+                - sra:SRR5761977
+        28_Wapl_KO:
+            lane1:
+                - sra:SRR5761978
+        29_Wapl_flox:
+            lane1:
+                - sra:SRR5761979
+        2_Scc1_KO:
+            lane1:
+                - sra:SRR5761952
+        30_Wapl_flox:
+            lane1:
+                - sra:SRR5761980
+        31_Wapl_KO:
+            lane1:
+                - sra:SRR5761981
+        32_Wapl_KO:
+            lane1:
+                - sra:SRR5761982
+        33_Wapl_flox:
+            lane1:
+                - sra:SRR5761983
+        34_Wapl_KO:
+            lane1:
+                - sra:SRR5761984
+        35_Scc1_KO:
+            lane1:
+                - sra:SRR5761985
+        36_Scc1_KO:
+            lane1:
+                - sra:SRR5761986
+        37_Scc1_KO:
+            lane1:
+                - sra:SRR5761987
+        38_Scc1_KO:
+            lane1:
+                - sra:SRR5761988
+        39_Scc1_KO:
+            lane1:
+                - sra:SRR5761989
+        3_Scc1_KO:
+            lane1:
+                - sra:SRR5761953
+        40_Scc1_KO:
+            lane1:
+                - sra:SRR5761990
+        41_Scc1_KO:
+            lane1:
+                - sra:SRR5761991
+        42_Scc1_KO:
+            lane1:
+                - sra:SRR5761992
+        43_Scc1_KO:
+            lane1:
+                - sra:SRR5761993
+        44_Scc1_KO:
+            lane1:
+                - sra:SRR5761994
+        45_Scc1_KO:
+            lane1:
+                - sra:SRR5761995
+        46_Scc1_KO:
+            lane1:
+                - sra:SRR5761996
+        47_Scc1_KO:
+            lane1:
+                - sra:SRR5761997
+        48_Scc1_KO:
+            lane1:
+                - sra:SRR5761998
+        49_Scc1_KO:
+            lane1:
+                - sra:SRR5761999
+        4_Scc1_KO:
+            lane1:
+                - sra:SRR5761954
+        50_Scc1_KO:
+            lane1:
+                - sra:SRR5762000
+        51_Scc1_KO:
+            lane1:
+                - sra:SRR5762001
+        52_Scc1_KO:
+            lane1:
+                - sra:SRR5762002
+        53_Scc1_KO:
+            lane1:
+                - sra:SRR5762003
+        54_Scc1_KO:
+            lane1:
+                - sra:SRR5762004
+        55_Scc1_KO:
+            lane1:
+                - sra:SRR5762005
+        56_Scc1_KO:
+            lane1:
+                - sra:SRR5762006
+        57_Scc1_KO:
+            lane1:
+                - sra:SRR5762007
+        58_Scc1_flox:
+            lane1:
+                - sra:SRR5762008
+        59_Scc1_flox:
+            lane1:
+                - sra:SRR5762009
+        5_Scc1_KO:
+            lane1:
+                - sra:SRR5761955
+        60_Scc1_flox:
+            lane1:
+                - sra:SRR5762010
+        61_Scc1_flox:
+            lane1:
+                - sra:SRR5762011
+        62_Scc1_flox:
+            lane1:
+                - sra:SRR5762012
+        63_Scc1_flox:
+            lane1:
+                - sra:SRR5762013
+        64_Scc1_flox:
+            lane1:
+                - sra:SRR5762014
+        65_Scc1_flox:
+            lane1:
+                - sra:SRR5762015
+        66_Scc1_flox:
+            lane1:
+                - sra:SRR5762016
+        67_Scc1_flox:
+            lane1:
+                - sra:SRR5762017
+        68_Scc1_flox:
+            lane1:
+                - sra:SRR5762018
+        69_Scc1_flox:
+            lane1:
+                - sra:SRR5762019
+        6_Scc1_KO:
+            lane1:
+                - sra:SRR5761956
+        70_Scc1_flox:
+            lane1:
+                - sra:SRR5762020
+        71_Scc1_flox:
+            lane1:
+                - sra:SRR5762021
+        72_Scc1_flox:
+            lane1:
+                - sra:SRR5762022
+        73_G2:
+            lane1:
+                - sra:SRR5892477
+        74_G2:
+            lane1:
+                - sra:SRR5892478
+        75_G2:
+            lane1:
+                - sra:SRR5892479
+            lane2:
+                - sra:SRR6242239
+        76_G2:
+            lane1:
+                - sra:SRR5892480
+            lane2:
+                - sra:SRR6242240
+        77_G2:
+            lane1:
+                - sra:SRR5892481
+            lane2:
+                - sra:SRR6242241
+        78_G2:
+            lane1:
+                - sra:SRR5892482
+            lane2:
+                - sra:SRR6242242
+        79_G2:
+            lane1:
+                - sra:SRR5892483
+            lane2:
+                - sra:SRR6242243
+        7_Scc1_KO:
+            lane1:
+                - sra:SRR5761957
+        80_G2:
+            lane1:
+                - sra:SRR5892484
+            lane2:
+                - sra:SRR6242244
+        81_G2:
+            lane1:
+                - sra:SRR5892485
+            lane2:
+                - sra:SRR6242245
+        82_G2:
+            lane1:
+                - sra:SRR5892486
+        83_G2:
+            lane1:
+                - sra:SRR5892487
+        84_G2:
+            lane1:
+                - sra:SRR5892488
+        85_G2:
+            lane1:
+                - sra:SRR5892489
+        86_G2:
+            lane1:
+                - sra:SRR5892490
+        87_G2:
+            lane1:
+                - sra:SRR5892491
+        88_G2:
+            lane1:
+                - sra:SRR5892492
+        89_G2:
+            lane1:
+                - sra:SRR5892493
+        8_Scc1_KO:
+            lane1:
+                - sra:SRR5761958
+        90_G2:
+            lane1:
+                - sra:SRR5892494
+        91_G2:
+            lane1:
+                - sra:SRR5892495
+        92_G2:
+            lane1:
+                - sra:SRR5892496
+        93_G2:
+            lane1:
+                - sra:SRR5892497
+        94_G2:
+            lane1:
+                - sra:SRR5892498
+        95_G2:
+            lane1:
+                - sra:SRR5892499
+        96_G2:
+            lane1:
+                - sra:SRR5892500
+        97_G2:
+            lane1:
+                - sra:SRR5892501
+        98_G2:
+            lane1:
+                - sra:SRR5892502
+        99_G2:
+            lane1:
+                - sra:SRR5892503
+        9_Scc1_KO:
+            lane1:
+                - sra:SRR5761959
+    library_groups:
+        oocyte_Intermediate:
+            - 43_oocyte_Intermediate
+            - 7_oocyte_Intermediate
+        oocyte_Intermediate-Hoechst:
+            - 50_oocyte_Intermediate-Hoechst
+            - 57_oocyte_Intermediate-Hoechst
+            - 84_oocyte_Intermediate-Hoechst
+        oocyte_NSN:
+            - 10_oocyte_NSN
+            - 12_oocyte_NSN
+            - 15_oocyte_NSN
+            - 17_oocyte_NSN
+            - 1_oocyte_NSN
+            - 25_oocyte_NSN
+            - 30_oocyte_NSN
+            - 32_oocyte_NSN
+            - 40_oocyte_NSN
+            - 41_oocyte_NSN
+            - 44_oocyte_NSN
+            - 47_oocyte_NSN
+            - 48_oocyte_NSN
+            - 4_oocyte_NSN
+            - 55_oocyte_NSN
+            - 59_oocyte_NSN
+            - 5_oocyte_NSN
+            - 62_oocyte_NSN
+            - 65_oocyte_NSN
+        oocyte_NSN-Hoechst:
+            - 26_oocyte_NSN-Hoechst
+            - 86_oocyte_NSN-Hoechst
+            - 93_oocyte_NSN-Hoechst
+        oocyte_SN:
+            - 13_oocyte_SN
+            - 14_oocyte_SN
+            - 20_oocyte_SN
+            - 27_oocyte_SN
+            - 29_oocyte_SN
+            - 31_oocyte_SN
+            - 35_oocyte_SN
+            - 37_oocyte_SN
+            - 39_oocyte_SN
+            - 3_oocyte_SN
+            - 46_oocyte_SN
+            - 51_oocyte_SN
+            - 68_oocyte_SN
+            - 82_oocyte_SN
+            - 83_oocyte_SN
+            - 8_oocyte_SN
+            - 99_oocyte_SN
+        oocyte_SN-Hoechst:
+            - 11_oocyte_SN-Hoechst
+            - 16_oocyte_SN-Hoechst
+            - 18_oocyte_SN-Hoechst
+            - 19_oocyte_SN-Hoechst
+            - 21_oocyte_SN-Hoechst
+            - 22_oocyte_SN-Hoechst
+            - 23_oocyte_SN-Hoechst
+            - 28_oocyte_SN-Hoechst
+            - 2_oocyte_SN-Hoechst
+            - 33_oocyte_SN-Hoechst
+            - 34_oocyte_SN-Hoechst
+            - 42_oocyte_SN-Hoechst
+            - 49_oocyte_SN-Hoechst
+            - 52_oocyte_SN-Hoechst
+            - 56_oocyte_SN-Hoechst
+            - 61_oocyte_SN-Hoechst
+            - 6_oocyte_SN-Hoechst
+            - 88_oocyte_SN-Hoechst
+            - 9_oocyte_SN-Hoechst
+        pronucleus_female:
+            - 60_pronucleus_female
+            - 64_pronucleus_female
+            - 66_pronucleus_female
+            - 67_pronucleus_female
+            - 71_pronucleus_female
+            - 73_pronucleus_female
+            - 76_pronucleus_female
+            - 81_pronucleus_female
+            - 91_pronucleus_female
+            - 92_pronucleus_female
+            - 94_pronucleus_female
+            - 95_pronucleus_female
+        pronucleus_male:
+            - 63_pronucleus_male
+            - 74_pronucleus_male
+            - 85_pronucleus_male
+            - 89_pronucleus_male
+            - 96_pronucleus_male
+            - 97_pronucleus_male
+        pronucleus_w-o-inh-both:
+            - 36_pronucleus_w-o-inh-both
+            - 53_pronucleus_w-o-inh-both
+        pronucleus_w-o-inh-female:
+            - 69_pronucleus_w-o-inh-female
+            - 78_pronucleus_w-o-inh-female
+        pronucleus_w-o-inh-male:
+            - 75_pronucleus_w-o-inh-male
+            - 77_pronucleus_w-o-inh-male
+            - 80_pronucleus_w-o-inh-male
+            - 87_pronucleus_w-o-inh-male
+            - 90_pronucleus_w-o-inh-male
+            - 98_pronucleus_w-o-inh-male
+        pronucleus_w-o-inh-undef_sex:
+            - 24_pronucleus_w-o-inh-undef_sex
+            - 38_pronucleus_w-o-inh-undef_sex
+            - 45_pronucleus_w-o-inh-undef_sex
+            - 70_pronucleus_w-o-inh-undef_sex
+        G2:
+            - 73_G2
+            - 74_G2
+            - 75_G2
+            - 76_G2
+            - 77_G2
+            - 78_G2
+            - 79_G2
+            - 80_G2
+            - 81_G2
+            - 82_G2
+            - 83_G2
+            - 84_G2
+            - 85_G2
+            - 86_G2
+            - 87_G2
+            - 88_G2
+            - 89_G2
+            - 90_G2
+            - 91_G2
+            - 92_G2
+            - 93_G2
+            - 94_G2
+            - 95_G2
+            - 96_G2
+            - 97_G2
+            - 98_G2
+            - 99_G2
+        Scc1_KO:
+            - 10_Scc1_KO
+            - 1_Scc1_KO
+            - 2_Scc1_KO
+            - 35_Scc1_KO
+            - 36_Scc1_KO
+            - 37_Scc1_KO
+            - 38_Scc1_KO
+            - 39_Scc1_KO
+            - 3_Scc1_KO
+            - 40_Scc1_KO
+            - 41_Scc1_KO
+            - 42_Scc1_KO
+            - 43_Scc1_KO
+            - 44_Scc1_KO
+            - 45_Scc1_KO
+            - 46_Scc1_KO
+            - 47_Scc1_KO
+            - 48_Scc1_KO
+            - 49_Scc1_KO
+            - 4_Scc1_KO
+            - 50_Scc1_KO
+            - 51_Scc1_KO
+            - 52_Scc1_KO
+            - 53_Scc1_KO
+            - 54_Scc1_KO
+            - 55_Scc1_KO
+            - 56_Scc1_KO
+            - 57_Scc1_KO
+            - 5_Scc1_KO
+            - 6_Scc1_KO
+            - 7_Scc1_KO
+            - 8_Scc1_KO
+            - 9_Scc1_KO
+        Scc1_flox:
+            - 11_Scc1_flox
+            - 12_Scc1_flox
+            - 13_Scc1_flox
+            - 14_Scc1_flox
+            - 15_Scc1_flox
+            - 16_Scc1_flox
+            - 17_Scc1_flox
+            - 18_Scc1_flox
+            - 58_Scc1_flox
+            - 59_Scc1_flox
+            - 60_Scc1_flox
+            - 61_Scc1_flox
+            - 62_Scc1_flox
+            - 63_Scc1_flox
+            - 64_Scc1_flox
+            - 65_Scc1_flox
+            - 66_Scc1_flox
+            - 67_Scc1_flox
+            - 68_Scc1_flox
+            - 69_Scc1_flox
+            - 70_Scc1_flox
+            - 71_Scc1_flox
+            - 72_Scc1_flox
+        Wapl_KO:
+            - 23_Wapl_KO
+            - 24_Wapl_KO
+            - 25_Wapl_KO
+            - 26_Wapl_KO
+            - 27_Wapl_KO
+            - 28_Wapl_KO
+            - 31_Wapl_KO
+            - 32_Wapl_KO
+            - 34_Wapl_KO
+        Wapl_flox:
+            - 19_Wapl_flox
+            - 20_Wapl_flox
+            - 21_Wapl_flox
+            - 22_Wapl_flox
+            - 29_Wapl_flox
+            - 30_Wapl_flox
+            - 33_Wapl_flox
+    
+    truncate_fastq_reads: 0
 
 # Choose if you want to do FastQC of the input files:
 do_fastqc: False
@@ -141,13 +1620,13 @@ parse:
     # Phred scores from the SAM alignments in .pairsam and .bam output files.
     # Enable to make lightweight .pairsam/.bam output.
     # NOTE: when 'make_pairsam' is False, 'drop_seq' is ignored.
-    drop_seq: False
+    drop_seq: True
 
     # Enable 'drop_readid' to drop readID from .pairs files to create
     # lightweight .pairs files
     # NOTE: does not affect alignment records in the .pairsam files and
     # subsequently .bam files after .apirsam splitting.
-    drop_readid: True
+    drop_readid: False
 
     # When 'keep_unparsed_bams' is True, distiller preserves the _immediate_
     # output of bwa in a .bam format. Could be used as a faster alternative
@@ -160,7 +1639,7 @@ parse:
     # enables storing MAPQ scores in the .pairsam/.pairs output, which are
     # used later for filtering/binning. The default walks-policy is 'mask'
     # which masks complex walks in long reads.
-    parsing_options: '--add-columns mapq --walks-policy mask'
+    parsing_options: '--add-columns mapq --walks-policy all'
 
 # Control how PCR/optical duplicates are detected in the data.
 dedup:
@@ -169,14 +1648,10 @@ dedup:
     # mapped locations on either side for two pairs to be still considered as
     # duplicates.
     max_mismatch_bp: 1
+    dedup_options: '--backend cython -p1 8 -p2 11 --max-mismatch 0'
 
-    # Pass extra options to pairtools dedup, which will regulate the working engine
-    # (--backend can be set to "scipy", "sklearn" or "cython"; scipy by default),
-    # the chunk size can be set for scipy and sklearn backends: --chunksize 
-    # is 100000 by default, which consumes several Gb per process. It can be set to 
-    # smaller values (e.g. 10000), which will increase processing time but decrease memory.
-    # Note that on cluster the job can be "Killed" if the task uses more than the memory limit.
-    dedup_options: ''
+restrict: 
+    restriction_sites: "/home/agalicina/HiC_mouse-embryo/schic/distiller-nf/rsites_DpnII_mm10.bed"
 
 # Control how Hi-C pairs are binned into contact maps, stored in .cool files.
 bin:
@@ -197,6 +1672,9 @@ bin:
         - 5000
         - 2000
         - 1000
+        - 500
+        - 200
+        - 100
     # Specify if the multi-resolution .cool output files should be balanced.
     balance: true
 
