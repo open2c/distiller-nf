@@ -18,7 +18,7 @@ The `distiller` pipeline aims to provide the following functionality:
 Requirements:
 
 - java 8
-- [nextflow](https://www.nextflow.io/)
+- [nextflow](https://www.nextflow.io/) version 22.10.x or earlier
 - singularity or docker (the latter should be able to run w/o root privileges, 
 [tutorial](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04))
 
@@ -61,3 +61,18 @@ $ nextflow clone mirnylab/distiller-nf  ./
 $ bash ./test/setup_test.sh
 $ nextflow distiller.nf -params-file ./test/test_project.yml 
 ```
+
+### Nextflow and DSL version note
+
+Distiller was originally designed for DSL1 syntax of nextflow. 
+Nextflow [stopped supporting DSL1 with 23.X.X update](https://github.com/nextflow-io/nextflow/issues/3915).
+
+We recommend fixing the nextflow version: 
+
+```sh
+conda install -c bioconda "nextflow==22.10"
+```
+
+Distiller has been recently re-implemented in DSL2: https://github.com/open2c/distiller-nf/tree/distiller_dsl2. 
+
+DSL2 version is still the beta version under testing. 
