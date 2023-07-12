@@ -499,7 +499,7 @@ process map_parse_sort_chunks {
     def restrict = params.get('restrict', []).get('restriction_sites', '')
     def restriction_command = (
         restrict ?
-        "-o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} | pairtools restrict -f ${restrict} --nproc-in ${sorting_threads} --nproc-out ${sorting_threads} " : \
+        "| pairtools restrict -f ${restrict} --nproc-in ${sorting_threads} --nproc-out ${sorting_threads} -o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} " : \
         "-o ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.pairsam.${suffix} "
         )
 
