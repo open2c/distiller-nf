@@ -13,6 +13,7 @@ dependencies:
     - sra-tools>=2.8.1
     - fastqc
     - bwa
+    - bowtie2
     - seqtk
     - setuptools 
     - pip

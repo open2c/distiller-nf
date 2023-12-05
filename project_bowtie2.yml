@@ -1,0 +1,71 @@
+input:
+    raw_reads_paths:
+        G1:
+            lane1:
+                - sra:SRR6417986?start=0&end=10000 # Example dataset from Ohno 2019
+
+    library_groups:
+        all:
+            - G1
+
+    truncate_fastq_reads: 0
+
+    genome:
+        assembly_name: 'sacCer3'
+        genome_index_wildcard_path: '/net/levsha/share/lab/genomes/sacCer3/index-bowtie2/sacCer3.fa.*'
+        chrom_sizes_path:   '/net/levsha/share/lab/genomes/sacCer3/sacCer3.chrom.sizes'
+
+do_fastqc: True
+
+map:
+    method: 'bowtie2'
+
+    chunksize: 0
+    mapping_options: '--very-sensitive-local' 
+    # Note that --reorder is required bowtie2 parameter to make pairtools run appropriately, it's already included.
+    trim_options: ''
+    use_custom_split: true
+
+parse:
+    make_pairsam: False
+    drop_seq: True
+    drop_readid: False
+    keep_unparsed_bams: False
+    parsing_options: '--add-columns mapq --walks-policy all'
+
+dedup:
+    max_mismatch_bp: 1
+
+bin:
+    resolutions:
+        - 10000000
+        - 5000000
+        - 2500000
+        - 1000000
+        - 500000
+        - 250000
+        - 100000
+        - 50000
+        - 25000
+        - 10000
+        - 5000
+        - 2000
+        - 1000
+    balance: true
+
+    filters:
+        no_filter: ''
+        mapq_30: '(mapq1>=30) and (mapq2>=30)'
+
+########################################
+# folder structure for storing results
+########################################
+output:
+    dirs:
+        processed_fastqs: 'results_bowtie2/processed_fastqs/'
+        mapped_parsed_sorted_chunks: 'results_bowtie2/mapped_parsed_sorted_chunks'
+        fastqc: 'results_bowtie2/fastqc/'
+        pairs_library: 'results_bowtie2/pairs_library'
+        coolers_library: 'results_bowtie2/coolers_library/'
+        coolers_library_group: 'results_bowtie2/coolers_library_group/'
+        stats_library_group: 'results_bowtie2/stats_library_group/'

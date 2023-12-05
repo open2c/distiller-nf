@@ -495,20 +495,29 @@ process map_parse_sort_chunks {
     def mapping_threads = (task.cpus as int)
     def sorting_threads = (task.cpus as int)
 
+    mapping_method = params['map'].get('method','bwa mem')
+
     def fastq = ""
     def trim_fastq = ""
     if (SINGLE_END) {
-        fastq = "${fastq1}"
-        trim_fastq = "-i ${fastq1} -I ${fastq2}"
-    } else {
-        fastq = "${fastq1} ${fastq2}"
+        if (mapping_method=='bowtie2') {
+            fastq = "-U ${fastq1}"
+        } else {
+            fastq = "${fastq1}"
+        }
         trim_fastq = "-i ${fastq1}"
+    } else {
+        if (mapping_method=='bowtie2') {
+            fastq = "-1 ${fastq1} -2 ${fastq2}"
+        } else {
+            fastq = "${fastq1} ${fastq2}"
+        }
+        trim_fastq = "-i ${fastq1} -I ${fastq2}"
     }
 
     def mapping_command = ""
     def parse_method = params['parse'].get('method', 'parse')
     single_end_flag = SINGLE_END.toBoolean() ? "--single-end" : ""
-    mapping_method = params['map'].get('method','bwa mem')
     if (mapping_method=='bwa mem') { /* bwa mem branch */
             mapping_command = (
                 trim_options ?
@@ -576,8 +585,21 @@ process map_parse_sort_chunks {
                       ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.1.sai \
                       ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.2.sai ${fastq1} ${fastq2} "
             }
+        } else if (mapping_method=="bowtie2") { /* bowtie2 branch applicable for long reads or short reads */
+            /* --reorder */
+            mapping_command = (
+                trim_options ?
+                "fastp ${trim_options} \
+                --json ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.json \
+                --html ${library}.${run}.${ASSEMBLY_NAME}.${chunk}.fastp.html \
+                ${trim_fastq} --stdout | \
+                bowtie2 -p ${mapping_threads} --reorder ${mapping_options} -x ${genome_index_base} \
+                - ${keep_unparsed_bams_command}" : \
+                \
+                "bowtie2 -p ${mapping_threads} --reorder ${mapping_options} -x ${genome_index_base} \
+                ${fastq} ${keep_unparsed_bams_command}"
+            )
         }
-
 
     """
     TASK_TMP_DIR=\$(mktemp -d -p ${task.distillerTmpDir} distiller.tmp.XXXXXXXXXX)
