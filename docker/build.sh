@@ -12,7 +12,7 @@ trap cleanup EXIT
 
 
 # bop it
-docker build -t open2c/distiller_env:latest . 
-docker run -it open2c/distiller_env:latest apt list | sed 's/\x1b\[[0-9;]*m//g' > ./apt.list
-docker run -it open2c/distiller_env:latest conda list > ./conda.list
+docker build -t galitsyna/distiller_env:minimap2 . 
+docker run -it galitsyna/distiller_env:minimap2 apt list | sed 's/\x1b\[[0-9;]*m//g' > ./apt.list
+docker run -it galitsyna/distiller_env:minimap2 conda list > ./conda.list
 docker images

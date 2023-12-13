@@ -1,29 +1,29 @@
 name: distiller-env
 channels:
-    - conda-forge               
-    - defaults                  
-    - bioconda                  
-    - golobor
+    - conda-forge
+    - defaults
+    - bioconda
 dependencies:
-    - python=3.7
+    - python=3.9
     - parallel
     - pbgzip
     - lz4-c
-    - samtools>=1.4
-    - sra-tools>=2.8.1
+    - samtools>=1.16.1
+    - sra-tools>=3.0.0
     - fastqc
     - bwa
     - bowtie2
+    - minimap2
     - seqtk
-    - setuptools 
+    - setuptools
     - pip
-    - cython 
-    - numpy 
-    - dask
-    - nose 
+    - cython
+    - numpy>=1.21
+    - pysam>=0.15.0
+    - nose
     - pairix
-    - pairtools
     - fastp
     - pip:
-        - cooler>=0.8.5
+        - cooler>=0.8.11
         - toolz
+        - git+https://github.com/open2c/pairtools.git
